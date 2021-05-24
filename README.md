@@ -21,7 +21,7 @@ Our python implementation is intended to generate a Class object called "System"
 ```python
 import qt_trajectories as qtr
 
-test = qtr.System(drivingH, initialState, timeList, lindbladList = L_dummy, uMatrix = [], mMatrix = [],  FList = F_dummy, amp_= 0)
+test = qtr.System(drivingH, initialState, timeList, lindbladList, uMatrix, HMatrix, mMatrix,  FList, amp)
 ```
 where ```drivingH``` corresponds to the system's Hamiltonian given as a one-parameter python function returning a complex numpy array, even if the system is time-independent, for example:
 
@@ -51,12 +51,12 @@ If the system has dimension 2, we can get a visualition by calling rhoBlochrep:
 test.rhoBlochrep(anali, 'Analitical', '--')
 ```
 ![alt text](./examples/example_graphs/vn_test.png)
-With the ```lindbladList``` parameter we can include a set of Linblad operators as a one parameter function returning an array that contains each Lindblad operator expressed as a numpy array:
+With the ```lindbladList``` parameter we can include a set of Linblad operators as a function returning an array that contains each Lindblad operator expressed as a numpy array:
 ```python
-def L(t):
+def L():
     return [gamma*np.array([[0,1],[0,0]])]
 ```
-In general, these operators can be time-dependent, however, we must take into account that they must be bounded operators and their decay rates ![formula](https://render.githubusercontent.com/render/math?math=\gamma) must be positive. The analitical evolution dictated by the Lindblad equation can be obtained by calling the function ```lindbladAnalitical()```:
+In general, these operators can be time-dependent, in that case the we can change the above definitons by ```def L(t)```. It must take into account that they must be bounded operators and their decay rates ![formula](https://render.githubusercontent.com/render/math?math=\gamma) must be positive. The analitical evolution dictated by the Lindblad equation can be obtained by calling the function ```lindbladAnalitical()```:
  ```python
 test = qtr.System(H0, rho0, t, L) 
 rhoUana = test.lindbladAnalitical()
@@ -76,6 +76,13 @@ test_Urep = qtr.System(H0, rho0, t, L, uMatrix = u_matrix)
 m_matrix = np.array([1,0])
 test_Mrep = qtr.System(H0, rho0, t, L, mMatrix = m_matrix) 
 ```
+You can also define an adaptive unraveling by defining ```uMatrix```, ```HMatrix```, or ```mMatrix``` as a two parameter function. To define the unraveling <img src="https://render.githubusercontent.com/render/math?math=u%20%3D%20%3C%5Csigma_%7B-%7D%3E%20%2F%20%3C%5Csigma_%7B%2B%7D%3E"> we write
+ ```python
+ ## U-representation
+def u_matrix(t, rho):
+    return np.array([[-np.trace(np.dot(rho,sigmam))/np.trace(np.dot(rho,sigmap))]])
+```
+
 Given a representation, you can check the corresponding matrix for the other representation by calling the class variables ```U_rep``` and ```M_rep```, for example:
  ```python
 test_Urep.U_rep
@@ -117,6 +124,7 @@ Finally, this Qjumps implementation is compatible with each unraveling parametri
 ensemble = test.jumpRhoEnsemble(N, unraveling = True)
 rhoU = test.jumpRhoAverage(n_trajectories = 250, unraveling = True)
 ```
+Additionally, you can set the amplitude of the external local oscillator (LO) via the ```amp``` parameter. 
 ### Diffusive unraveling
 All difussive methods take the same form as for the Qjump case, so if you want to get an individual trajectory you can call:
  ```python
