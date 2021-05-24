@@ -13,7 +13,7 @@ setuptools.setup(
   author = 'Diego Veloza Diaz', 
   author_email = 'dvelozad@unal.edu.co',
   url = 'https://github.com/dvelozad',  
-  download_url = 'https://github.com/dvelozad/qt-unraveling-python/archive/refs/tags/v_01.tar.gz',    
+  download_url = 'https://github.com/dvelozad/qt-unraveling-python/archive/refs/tags/v0.1.tar.gz',    
   keywords = ['python','quantum control', 'unraveling', 'master equation', 'lindblad', 'open systems'],   
   install_requires=[            # I get to this in a second
           'numpy',
