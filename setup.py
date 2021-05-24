@@ -5,8 +5,8 @@ with open("README.md", "r") as fh:
 
 
 setuptools.setup(
-  name = 'qt_trajectories',
-  packages = ['qt_trajectories'], 
+  name = 'qt_unraveling',
+  packages = ['qt_unraveling'], 
   version = '0.1',
   license='MIT',
   description = 'Library focused on simulate quantum trajectories with different unravelings',

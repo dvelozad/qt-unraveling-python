@@ -14,7 +14,7 @@ pip install scipy
 You can install the library by running the code:
 
 ```python
-pip install qt_trajectories
+pip install qt_unraveling
 ```
 # Getting started
 Our python implementation is intended to generate a Class object called "System". A System class object call has to be done in the following way:  
