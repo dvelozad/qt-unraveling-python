@@ -1,0 +1,10 @@
+README.md
+setup.cfg
+setup.py
+qt_trajectories/__init__.py
+qt_trajectories/qt_trajectories.py
+qt_trajectories.egg-info/PKG-INFO
+qt_trajectories.egg-info/SOURCES.txt
+qt_trajectories.egg-info/dependency_links.txt
+qt_trajectories.egg-info/requires.txt
+qt_trajectories.egg-info/top_level.txt

@@ -4,19 +4,22 @@ The purpose of this project is to build a library that allows us to implement Qu
 Our python implementation is based on the complete unraveling parametrization developed in [[1]](https://arxiv.org/abs/1102.3073), including a Quantum jump unraveling scheme in principle compatible with this same parametrization. Additionally, it is included the Markovian feedback scheme studied in [[2]](https://arxiv.org/abs/1102.3098).
 
 # Dependencies
-
-We recommend to install the package manager [conda](https://www.anaconda.com/products/individual), however, it is not required. You can run the following to get the necessary packages:
+We recommend to install the package [anaconda](https://www.anaconda.com/products/individual), however, it is not required. You can run the following to get the necessary packages:
 
 ```python
-conda install qutip
-pip install odeintw
+pip install numpy
+pip install scipy
+```
+# Installing
+You can install the library by running the code:
+
+```python
+pip install qt_trajectories
 ```
 # Getting started
 Our python implementation is intended to generate a Class object called "System". A System class object call has to be done in the following way:  
 ```python
-import sys
-sys.path.insert(1,'path-to/QT-Unravellings/code/python/')
-import q_trajectories as qtr
+import qt_trajectories as qtr
 
 test = qtr.System(drivingH, initialState, timeList, lindbladList = L_dummy, uMatrix = [], mMatrix = [],  FList = F_dummy, amp_= 0)
 ```
@@ -47,7 +50,7 @@ If the system has dimension 2, we can get a visualition by calling rhoBlochrep:
 ```python
 test.rhoBlochrep(anali, 'Analitical', '--')
 ```
-![alt text](./code/python/examples/example_graphs/vn_test.png)
+![alt text](./examples/example_graphs/vn_test.png)
 With the ```lindbladList``` parameter we can include a set of Linblad operators as a one parameter function returning an array that contains each Lindblad operator expressed as a numpy array:
 ```python
 def L(t):
@@ -108,7 +111,7 @@ rho_qjump = test.jumpRhoAverage(n_trajectories = 250)
 test.rhoBlochrep(rhoUana, 'Analitical', '-')
 test.rhoBlochrep(rho_qjump, 'Qjump', '-')
 ```
-![alt text](./code/python/examples/example_graphs/qjump_test.png)
+![alt text](./examples/example_graphs/qjump_test.png)
 Finally, this Qjumps implementation is compatible with each unraveling parametrization, but by default this option is deactivated. To activate the unraveling parametrization you have to set ```unraveling = True```:
  ```python
 ensemble = test.jumpRhoEnsemble(N, unraveling = True)
@@ -139,7 +142,7 @@ rho_diff = test.diffusiveRhoAverage(n_trajectories = 250)
 test.rhoBlochrep(rhoUana, 'Analitical', '-')
 test.rhoBlochrep(rho_diff, 'Diffusive', '-')
 ```
-![alt text](./code/python/examples/example_graphs/diffusive_test.png)
+![alt text](./examples/example_graphs/diffusive_test.png)
 ### Markovian feedback
 To make use of feedback methods you have to include a one parameter function returning an array of numpy arrays for each feedback operator through the ```FList``` parameter:
  ```python
@@ -175,4 +178,4 @@ test.rhoBlochrep(average_feed, 'Diffusive', '-')
 test.rhoBlochrep(anali_feed, 'Analitical', '-')
 
 ```
-![alt text](./code/python/examples/example_graphs/feed_test.png)
+![alt text](./examples/example_graphs/feed_test.png)
