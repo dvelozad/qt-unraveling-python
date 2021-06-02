@@ -1,12 +1,12 @@
 Metadata-Version: 1.1
 Name: qt-unraveling
-Version: 0.1.1
+Version: 0.1.2
 Summary: Library focused on simulate quantum trajectories with different unravelings
 Home-page: https://github.com/dvelozad
 Author: Diego Veloza Diaz
 Author-email: dvelozad@unal.edu.co
 License: MIT
-Download-URL: https://github.com/dvelozad/qt-unraveling-python/archive/refs/tags/v0.1.1.tar.gz
+Download-URL: https://github.com/dvelozad/qt-unraveling-python/archive/refs/tags/v0.1.2.tar.gz
 Description: UNKNOWN
 Keywords: python,quantum control,unraveling,master equation,lindblad,open systems
 Platform: UNKNOWN
