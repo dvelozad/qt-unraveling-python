@@ -490,19 +490,19 @@ class System:
             dz = self.dZeta(seed_n)
             # Heun
             if method == 0:
-                for it in range(self.maxiter):
+                for it in range(1,self.maxiter):
                     state = state + self.diffusivePureHeunStep(it, state, dz[it])
                     state = (1/np.linalg.norm(state))*state
                     vec.append(state)
             # Euler
             if method == 1:
-                for it in range(self.maxiter):
+                for it in range(1,self.maxiter):
                     state = state + self.diffusivePureEulerStep(it, state, dz[it])
                     state = (1/np.linalg.norm(state))*state
                     vec.append(state)
             # Milstein
             if method == 2:
-                for it in range(self.maxiter):
+                for it in range(1,self.maxiter):
                     state = state + self.diffusivePureMilsteinStep(it, state, dz[it])
                     state = (1/np.linalg.norm(state))*state
                     vec.append(state)
@@ -510,7 +510,7 @@ class System:
         elif self.nonfixedUnraveling == 1:
             # Heun
             if method == 0:
-                for it in range(self.maxiter):
+                for it in range(1,self.maxiter):
                     self.update_defintions(self.t0 + it*self.dt, state)
                     dz = self.dZeta_nf(self.U_rep, seed_n + it)
                     state = state + self.diffusivePureHeunStep(it, state, dz)
@@ -518,7 +518,7 @@ class System:
                     vec.append(state)
             # Euler
             if method == 1:
-                for it in range(self.maxiter):
+                for it in range(1,self.maxiter):
                     self.update_defintions(self.t0 + it*self.dt, state)
                     dz = self.dZeta_nf(self.U_rep, seed_n + it)
                     state = state + self.diffusivePureEulerStep(it, state, dz)
@@ -526,7 +526,7 @@ class System:
                     vec.append(state)
             # Milstein
             if method == 2:
-                for it in range(self.maxiter):
+                for it in range(1,self.maxiter):
                     self.update_defintions(self.t0 + it*self.dt, state)
                     dz = self.dZeta_nf(self.U_rep, seed_n + it)
                     state = state + self.diffusivePureMilsteinStep(it, state, dz)
@@ -950,7 +950,7 @@ class System:
                     rho_total.append(rho_t)
                     #####################################################################
             elif time_dep == False:
-                for i in range(self.maxiter):
+                for i in range(1,self.maxiter):
                     rho_t = self.jumpRungeRhoStep(self.t0 + self.dt*i, rho_t, 0, c0, self.jumpdNRho(c0, rho_t), unraveling = False, eta_MtC = eta_vec0)
                     rho_total.append(rho_t)
             
@@ -983,7 +983,7 @@ class System:
                         #####################################################################ç
                     
             elif time_dep == False:
-                for i in range(self.maxiter):
+                for i in range(1,self.maxiter):
                     rho_t = self.jumpRungeRhoStep(self.t0 + self.dt*i, rho_t, self.default_amp, MtC0, self.jumpdNRho(MtC0, rho_t), unraveling = True, eta_MtC = eta_vec0)
                     #rho_t = (1/np.linalg.norm(rho_t))*rho_t
                     rho_total.append(rho_t)
@@ -2394,8 +2394,8 @@ class System:
         return commu1   
     
 ##########################################################################################
+################################# Extra definitons #######################################
 ########################################################################################## 
-
 class DOP853(DOP853_):
     def _estimate_error_norm(self, K, h, scale):
         err5 = np.dot(K.T, self.E5) / scale
@@ -2488,7 +2488,9 @@ def representation(num_op, mMatrix, uMatrix, HMatrix, oMatrix):
         M_rep = np.round(T1 + 1j*T2,7)
     return U_rep, M_rep, T_rep
 
-### Misc functions
+###########################################################
+#################### Misc functions #######################
+###########################################################
 def rhoBlochrep_data(rho):
     t_steps = len(rho)
     rx = []
@@ -2498,7 +2500,7 @@ def rhoBlochrep_data(rho):
         rx.append(np.real(np.trace(rho[i].dot(np.array([[0,1],[1,0]])))))
         ry.append(np.real(np.trace(rho[i].dot(np.array([[0,-1j],[1j,0]])))))
         rz.append(np.real(np.trace(rho[i].dot(np.array([[1,0],[0,-1]])))))
-    return [rx,ry,rz]
+    return rx, ry, rz
 
 def fidelity(rho1, rho2):
     srho1 = sqrtm(rho1)
@@ -2543,3 +2545,25 @@ def opG(A, B):
 def op_expect(self, op_, psi):
     expect = np.conjugate(psi).dot(op_.dot(psi))
     return expect
+
+###########################################################
+################ Common definitions #######################
+###########################################################
+sigmax = np.array([[0,1],[1,0]], dtype = np.complex128)
+sigmay = np.array([[0,-1j],[1j,0]], dtype = np.complex128)
+sigmaz = np.array([[1,0],[0,-1]], dtype = np.complex128)
+
+sigmap = 0.5*(sigmax + 1j*sigmay)
+sigmam = 0.5*(sigmax - 1j*sigmay)
+
+# Analitical concurrence
+def concurrence_psi(psi):
+    op = np.kron(sigmay,sigmay)
+    return np.linalg.norm(np.dot(psi,np.dot(op,psi)))
+
+def concurrence_rho(rho):
+    op = np.kron(sigmay,sigmay)
+    rho_ = np.dot(op,np.dot(np.conjugate(rho),op))
+    rhorho_ = np.dot(rho,rho_)
+    lambda_ = np.sqrt(np.abs(np.real(-1*np.sort(-1*np.linalg.eig(rhorho_)[0]))))
+    return np.max(np.array([0, np.abs(lambda_[0] - lambda_[1] - lambda_[2] - lambda_[3])]))
