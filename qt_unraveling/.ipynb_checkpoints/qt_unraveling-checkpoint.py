@@ -13,19 +13,13 @@ import warnings
 
 from functools import partial
 
-## import parallel aux funtion
-from qt_unraveling.misc_func import parallel_run
-
-## import numba opti functions
-from qt_unraveling.usual_operators_ import operators_Mrep, sqrt_jit
+import misc_func as misc
+from usual_operators_ import *
 
 ## Trajectory modules
-from qt_unraveling.diffusive_trajectory import diffusiveRhoTrajectory_, diffusiveRhoTrajectory_td
-from qt_unraveling.feedback_trajectory import feedbackRhoTrajectory_
-from qt_unraveling.jumpy_trajectory import jumpRhoTrajectory_, jumpRhoTrajectory_td
-
-## import integrators
-from qt_unraveling.integrators import scipy_integrator, vonneumann_operator, standartLindblad_operator, feedbackEvol_operator
+from diffusive_trajectory import *
+from feedback_trajectory import *
+from jumpy_trajectory import *
 
 class System:
     def __init__(self, drivingH, initialState, timeList, *, lindbladList = [], FList = [], uMatrix = [], mMatrix = [], oMatrix = [], HMatrix = [], TMatrix = [], WMatrix = [], PhiMatrix = []):
@@ -137,15 +131,6 @@ class System:
             else:
                 self.HMatrix = HMatrix
 
-            if type(uMatrix).__name__ in ['function']:
-                raise ValueError('Please redefine uMatrix function as a two parameter numba function uMatrix(t, rho)')
-
-            if type(HMatrix).__name__ in ['function']:
-                raise ValueError('Please redefine HMatrix function as a two parameter numba function HMatrix(t, rho)')
-
-            if type(mMatrix).__name__ in ['function']:
-                raise ValueError('Please redefine mMatrix function as a two parameter numba function mMatrix(t, rho)')
-
             ## Check if representation matrices are functions or arrays
             if type(uMatrix).__name__ in ['CPUDispatcher'] and type(HMatrix).__name__ in ['CPUDispatcher']:
                 self.nonfixedUnraveling = True
@@ -199,7 +184,6 @@ class System:
         #### Lindblad operators related definitions  
         #########################################################
         if not (lindbladList == []):
-            self.original_obj_lindbladList = lindbladList
             self.timedepent_lindbladoperators = False
             self.update_lindblad_operators(lindbladList)
             ## Lindblad operators must be a one argument function
@@ -225,9 +209,7 @@ class System:
                 if self.nonfixedUnraveling:
                     @jit(nopython=True)
                     def Lindblad_ops(t, rho, cList=lindbladList_):
-                        U_rep, M_rep, T_rep = update_defintions(t, rho)
-                        with objmode():
-                            self.U_rep, self.M_rep, self.T_bar_rep = U_rep, M_rep, T_rep
+                        M_rep = update_defintions(t, rho)[0]
                         return np.ascontiguousarray(operators_Mrep(M_rep, cList))
                     self.cList = Lindblad_ops
                 else:
@@ -247,9 +229,7 @@ class System:
                 if self.nonfixedUnraveling:
                     @jit(nopython=True)
                     def Lindblad_ops(t, rho):
-                        U_rep, M_rep, T_rep = update_defintions(t, rho)
-                        with objmode():
-                            self.U_rep, self.M_rep, self.T_bar_rep = U_rep, M_rep, T_rep
+                        M_rep = update_defintions(t, rho)[0]
                         lindbladList_ = operators_Mrep(M_rep, lindbladList(t))
                         return np.ascontiguousarray(lindbladList_)
                     self.cList = Lindblad_ops
@@ -305,7 +285,6 @@ class System:
         self.diffusiveRhoAverage_compilation_status= False
 
         ## jump functions compilation status
-        self.coherent_field_check = True
         self.jumpRhoTrajectory_compilation_status= False
         self.jumpRhoEnsemble_compilation_status = False
         self.jumpRhoAverage_compilation_status= False
@@ -314,7 +293,7 @@ class System:
         self.feedbackRhoTrajectory_compilation_status= False
         self.feedbackRhoAverage_compilation_status= False
 
-        if (not self.timedepent_lindbladoperators) and (not self.timedepent_hamiltonian) and (not self.nonfixedUnraveling):
+        if (not self.timedepent_lindbladoperators) or (not self.timedepent_hamiltonian) or (not self.nonfixedUnraveling):
         ## diffusive functions compilation status
             self.diffusiveRhoTrajectory_compilation_status= True
             self.diffusiveRhoEnsemble_compilation_status = True
@@ -329,65 +308,42 @@ class System:
             self.feedbackRhoTrajectory_compilation_status= True
             self.feedbackRhoAverage_compilation_status= True
 
-    ##############################################
-    ######  Analitical integrators functions #####
-    ##############################################
-    def vonneumannAnalitical(self):
-        op_lind = partial(vonneumann_operator, self.H)
-        return scipy_integrator(op_lind, self.initialStateRho, self.timeList)
-
-    def lindbladAnalitical(self):
-        op_lind = partial(standartLindblad_operator, self.H, self.cList)
-        return scipy_integrator(op_lind, self.initialStateRho, self.timeList)
-
-    def feedbackEvol_operator(self):
-        op_lind = partial(feedbackEvol_operator, self.H, self.original_cList, self.cList, self.FList)
-        return scipy_integrator(op_lind, self.initialStateRho, self.timeList)
 
     ############################################
     ######  diffusive trajectory functions #####
     ############################################
-    def diffusiveRhoTrajectory_td(self, method='euler', seed=0):
-        if not self.diffusiveRhoTrajectory_compilation_status:
-            print('Compiling diffusiveRhoTrajectory ...')
+    def diffusiveRhoTrajectory_td(self, seed=0):
         self.diffusiveRhoTrajectory_compilation_status = True
-        return partial(diffusiveRhoTrajectory_td, self.initialStateRho, self.timeList, self.H, self.original_cList, self.cList)(method, seed)
+        print('Compiling diffusiveRhoTrajectory ...')
+        return partial(diffusiveRhoTrajectory_td, self.initialStateRho, self.timeList, self.H, self.original_cList, self.cList)(seed)
 
-    def diffusiveRhoTrajectory_tind(self, method='euler', seed=0):
-        return partial(diffusiveRhoTrajectory_, self.initialStateRho, self.timeList, self.drivingH, self.original_lindbladList, self.lindbladList)(method, seed)
+    def diffusiveRhoTrajectory_tind(self, seed=0):
+        return partial(diffusiveRhoTrajectory_, self.initialStateRho, self.timeList, self.drivingH, self.original_lindbladList, self.lindbladList)(seed)
 
-    def diffusiveRhoTrajectory(self, method='euler', seed=0):
+    def diffusiveRhoTrajectory(self, seed=0):
         if (self.timedepent_lindbladoperators) or (self.timedepent_hamiltonian) or (self.nonfixedUnraveling):
-            return self.diffusiveRhoTrajectory_td(method, seed)
+            return self.diffusiveRhoTrajectory_td(seed)
         else:
-            return self.diffusiveRhoTrajectory_tind(method, seed)
+            return self.diffusiveRhoTrajectory_tind(seed)
 
-    def diffusiveRhoEnsemble(self, n_trajectories, method='euler'):
+    def diffusiveRhoEnsemble(self, n_trajectories):
         if ((self.timedepent_lindbladoperators) or (self.timedepent_hamiltonian) or (self.nonfixedUnraveling)) and (not self.diffusiveRhoEnsemble_compilation_status):
             self.diffusiveRhoEnsemble_compilation_status = True
             print('Compiling diffusiveRhoEnsemble ...')
-            tmp = self.diffusiveRhoTrajectory_td(method=method, seed=0)
+            tmp = self.diffusiveRhoTrajectory_td(0)
             del tmp
-            
-        if ((self.timedepent_lindbladoperators) or (self.timedepent_hamiltonian) or (self.nonfixedUnraveling)):
-            all_traj = parallel_run(partial(self.diffusiveRhoTrajectory_td, method), np.arange(n_trajectories))
-        else:
-            all_traj = parallel_run(partial(self.diffusiveRhoTrajectory_tind, method), np.arange(n_trajectories))
 
-        return all_traj
+        return misc.parallel_run(self.diffusiveRhoTrajectory_tind, np.arange(n_trajectories))
 
-    def diffusiveRhoAverage(self, n_trajectories, method='euler'):
+    def diffusiveRhoAverage(self, n_trajectories):
         if ((self.timedepent_lindbladoperators) or (self.timedepent_hamiltonian) or (self.nonfixedUnraveling)) and (not self.diffusiveRhoAverage_compilation_status):
             self.diffusiveRhoAverage_compilation_status = True
             print('Compiling diffusiveRhoAverage ...')
-            tmp = self.diffusiveRhoTrajectory_td(method=method, seed=0)
+            tmp = self.diffusiveRhoTrajectory_td(0)
             del tmp
             
-        if ((self.timedepent_lindbladoperators) or (self.timedepent_hamiltonian) or (self.nonfixedUnraveling)):
-            all_traj = parallel_run(partial(self.diffusiveRhoTrajectory_td, method), np.arange(n_trajectories))
-        else:
-            all_traj = parallel_run(partial(self.diffusiveRhoTrajectory_tind, method), np.arange(n_trajectories))
-            
+        all_traj = misc.parallel_run(self.diffusiveRhoTrajectory_tind, np.arange(n_trajectories))
+
         rho_average = np.zeros(np.shape(self.timeList) + np.shape(self.initialStateRho), dtype=np.complex128)
         for rho_traj in all_traj:
             rho_average = rho_average + (1/n_trajectories)*rho_traj
@@ -397,49 +353,14 @@ class System:
     ######  jump trajectory functions #####
     #######################################
     def jumpRhoTrajectory_td(self, coherent_fields, seed=0):
-        if not self.jumpRhoTrajectory_compilation_status:
-            print('Compiling jumpRhoTrajectory ...')
         self.jumpRhoTrajectory_compilation_status = True
+        print('Compiling jumpRhoTrajectory ...')
         return partial(jumpRhoTrajectory_td, self.initialStateRho, self.timeList, self.H, self.original_cList, self.eta_diag, self.cList)(coherent_fields, seed)
 
     def jumpRhoTrajectory_tind(self, coherent_fields, seed=0):
         return partial(jumpRhoTrajectory_, self.initialStateRho, self.timeList, self.drivingH, self.original_lindbladList, self.eta_diag, self.lindbladList)(coherent_fields, seed)
 
-    def jumpRhoTrajectory(self, coherent_fields=[], coherent_field_check=True, seed=0):
-        if np.shape(coherent_fields)[0]!=2*self.num_op:
-            raise ValueError('The number of coherent fields should be twice the number of Lindblad operators. Please redefine the coherent field array as [amp_op_1_x, amp_op_2_x..., amp_op_1_y, amp_op_2_y...]')
-
-        if coherent_field_check:
-            if all(coherent_fields == 0) and self.nonfixedUnraveling:
-                warnings.warn('This library version does not support null coherent fields in addition to adaptative unraveling. Regular x-quadrature unraveling selected')
-                num_op = self.num_op
-                oMatrix = self.oMatrix
-                @jit(nopython=True)
-                def update_defintions(t, rho):
-                    return update_defintions_uH(np.eye(num_op), np.eye(num_op), oMatrix)
-                self.update_defintions = update_defintions 
-
-                if (type(self.original_obj_lindbladList).__name__ == 'ndarray'):
-                    original_obj_lindbladList = self.original_obj_lindbladList
-                    @jit(nopython=True)
-                    def Lindblad_ops(t, rho, cList=original_obj_lindbladList):
-                        U_rep, M_rep, T_rep = update_defintions(t, rho)
-                        with objmode():
-                            self.U_rep, self.M_rep, self.T_bar_rep = U_rep, M_rep, T_rep
-                        return np.ascontiguousarray(operators_Mrep(M_rep, cList))
-                    self.cList = Lindblad_ops
-
-                elif (type(self.original_obj_lindbladList).__name__ == 'CPUDispatcher'):
-                    original_obj_lindbladList = self.original_obj_lindbladList
-                    @jit(nopython=True)
-                    def Lindblad_ops(t, rho):
-                        U_rep, M_rep, T_rep = update_defintions(t, rho)
-                        with objmode():
-                            self.U_rep, self.M_rep, self.T_bar_rep = U_rep, M_rep, T_rep
-                        lindbladList_ = operators_Mrep(M_rep, original_obj_lindbladList(t))
-                        return np.ascontiguousarray(lindbladList_)
-                    self.cList = Lindblad_ops   
-
+    def jumpRhoTrajectory(self, coherent_fields=[], seed=0):
         if len(coherent_fields) == 0:
             coherent_fields = self.coherent_fields
 
@@ -455,10 +376,10 @@ class System:
         if ((self.timedepent_lindbladoperators) or (self.timedepent_hamiltonian) or (self.nonfixedUnraveling)) and (not self.jumpRhoEnsemble_compilation_status):
             self.jumpRhoEnsemble_compilation_status = True
             print('Compiling jumpRhoEnsemble ...')
-            tmp = self.jumpRhoTrajectory(coherent_fields=coherent_fields, coherent_field_check=True, seed=0)
+            tmp = self.jumpRhoTrajectory_td(0)
             del tmp
 
-        return parallel_run(partial(self.jumpRhoTrajectory, coherent_fields, False), np.arange(n_trajectories))
+        return misc.parallel_run(partial(self.jumpRhoTrajectory, coherent_fields), np.arange(n_trajectories))
 
     def jumpRhoAverage(self, n_trajectories, coherent_fields=[]):
         if len(coherent_fields) == 0:
@@ -467,11 +388,11 @@ class System:
         if ((self.timedepent_lindbladoperators) or (self.timedepent_hamiltonian) or (self.nonfixedUnraveling)) and (not self.jumpRhoAverage_compilation_status):
             self.jumpRhoAverage_compilation_status = True
             print('Compiling jumpRhoAverage ...')
-            tmp = self.jumpRhoTrajectory(coherent_fields=coherent_fields, coherent_field_check=True, seed=0)
+            tmp = self.jumpRhoTrajectory_td(0)
             del tmp
 
         rho_average = np.zeros(np.shape(self.timeList) + np.shape(self.initialStateRho), dtype=np.complex128)
-        all_traj = parallel_run(partial(self.jumpRhoTrajectory, coherent_fields, False), np.arange(n_trajectories))
+        all_traj = misc.parallel_run(partial(self.jumpRhoTrajectory, coherent_fields), np.arange(n_trajectories))
         for rho_traj in all_traj:
             rho_average = rho_average + (1/n_trajectories)*rho_traj
         return rho_average
@@ -483,18 +404,14 @@ class System:
         if not self.feedbackRhoTrajectory_compilation_status:
             self.feedbackRhoTrajectory_compilation_status = True
             print('Compiling feedbackRhoTrajectory ...')
-            
         return partial(feedbackRhoTrajectory_, self.initialStateRho, self.timeList, self.H, self.cList, self.FList)(seed)
 
     def feedbackRhoAverage(self, n_trajectories):
         if not self.feedbackRhoAverage_compilation_status:
             self.feedbackRhoAverage_compilation_status = True
             print('Compiling feedbackRhoAverage ...')
-            tmp = self.feedbackRhoTrajectory(0)
-            del tmp
-
         rho_average = np.zeros(np.shape(self.timeList) + np.shape(self.initialStateRho), dtype=np.complex128)       
-        all_traj = parallel_run(self.feedbackRhoTrajectory, np.arange(n_trajectories))
+        all_traj = misc.parallel_run(self.feedbackRhoTrajectory, np.arange(n_trajectories))
         for rho_traj in all_traj:
             rho_average = rho_average + (1/n_trajectories)*rho_traj
         return rho_average
@@ -666,7 +583,7 @@ def representation(num_op, mMatrix, uMatrix, HMatrix, oMatrix, TMatrix, PhiMatri
         if np.shape(mMatrix) != (num_op,num_op*2):
             raise ValueError("Wrong M-Matrix dimension. Remember that M must have dimension (L,2L)")
 
-        SQ_U_O = np.zeros((2*np.shape(mMatrix)[0],2*np.shape(mMatrix)[0]), dtype=np.complex128)
+        SQ_U_O = np.zeros((2*np.shape(mMatrix)[0],2*np.shape(mMatrix)[1]), dtype=np.complex128)
         SQ_U_O[:np.shape(mMatrix)[0],:] = np.real(mMatrix)
         SQ_U_O[np.shape(mMatrix)[0]:,:] = np.imag(mMatrix)
 

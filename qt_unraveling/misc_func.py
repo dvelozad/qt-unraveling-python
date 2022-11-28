@@ -21,7 +21,7 @@ def parallel_run(fun, arg_list):
 def figure():
     plt.rcParams.update({'font.size': 15})
     fig, ax = plt.subplots()
-    fig.set_size_inches(w=14, h=5)
+    fig.set_size_inches(w=10, h=5)
 
     ax.spines["top"].set_linewidth(2)
     ax.spines["left"].set_linewidth(2)
@@ -31,7 +31,7 @@ def figure():
     ax.grid()
     return fig, ax
 
-def rhoBlochrep(rho_list, timeList, ax = None, component = ['rx', 'ry', 'rz'], line = '-', label = ''):  
+def rhoBlochcomp_plot(rho_list, timeList, ax = None, component = ['rx', 'ry', 'rz'], line = '-', label = ''):  
     rho_list = rho_list.copy()
     if not ax:
         fig, ax = figure()
@@ -52,8 +52,8 @@ def rhoBlochrep(rho_list, timeList, ax = None, component = ['rx', 'ry', 'rz'], l
     ax.set_xlabel('time')
     ax.legend()
 
-@njit
-def rhoBlochrep_data(rho):
+#@njit
+def rhoBlochcomp_data(rho):
     pauli_components = np.zeros((3, np.shape(rho)[0]), dtype=np.float64)
     for n_it, rho_it in enumerate(rho):
         rho_it = np.ascontiguousarray(rho_it)
@@ -61,6 +61,26 @@ def rhoBlochrep_data(rho):
         pauli_components[1][n_it] += np.real(np.trace(rho_it.dot(np.ascontiguousarray(np.array([[0,-1j],[1j,0]], dtype = np.complex128)))))
         pauli_components[2][n_it] += np.real(np.trace(rho_it.dot(np.ascontiguousarray(np.array([[1,0],[0,-1]], dtype = np.complex128)))))
     return pauli_components
+
+def rhoBlochSphere(rho_list):
+    fig = plt.figure(figsize=(6.5, 6.5))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # draw sphere
+    u, v = np.mgrid[0:2*np.pi:20j, 0:np.pi:10j]
+    x = np.cos(u)*np.sin(v)
+    y = np.sin(u)*np.sin(v)
+    z = np.cos(v)
+    ax.plot_surface(x, y, z, color="black", alpha=0.2, shade=True, cmap='twilight_shifted_r')
+    ax.plot_wireframe(x, y, z, color="black", alpha=0.1)
+
+    ## Bloch sphere components
+    for rho in rho_list:
+        x_t, y_t, z_t = rhoBlochcomp_data(rho)
+        ax.plot(x_t, y_t, z_t, linewidth=1)
+        
+    ax.set_aspect('auto')
+    plt.tight_layout()
 
 @njit
 def numba_choice(population, weights, k):

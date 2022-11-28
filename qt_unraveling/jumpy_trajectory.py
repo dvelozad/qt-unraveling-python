@@ -8,8 +8,9 @@ Year: 2022
 '''
 import numpy as np
 from numba import njit, objmode, float64, complex128, int64
-import usual_operators_ as op
-import misc_func as misc
+
+import qt_unraveling.usual_operators_ as op
+import qt_unraveling.misc_func as misc
 
 @njit
 def dNRho(stateRho, measurement_op_list, dt, seed=0):
@@ -43,11 +44,11 @@ def ortogonal_mixing(oMatrix, coherent_fields, L_it):
 def coherent_field_mixing(coherent_fields, L_it):
     new_ops = np.zeros(np.shape(L_it), dtype=np.complex128)
     for n_L, L in enumerate(L_it):
-        new_ops[n_L] += L + coherent_fields[n_L]*np.eye(np.shape(L_it)[0])
+        new_ops[n_L] += L + coherent_fields[n_L]*np.eye(np.shape(L)[0])
     return new_ops
 
 @njit
-def jumpRhoTrajectory_td(initialStateRho, timelist, drivingH, original_lindbladList, eta_diag, lindbladList, coherent_fields, seed=0):
+def jumpRhoTrajectory_td(initialStateRho, timelist, drivingH, original_lindbladList, eta_diag, lindbladList, coherent_fields, seed):
     ## Timelist details
     timeSteps = np.shape(timelist)[0]
     dt = timelist[1] - timelist[0]
@@ -61,6 +62,7 @@ def jumpRhoTrajectory_td(initialStateRho, timelist, drivingH, original_lindbladL
     no_jump_term_1 = np.ascontiguousarray(np.zeros(np.shape(initialStateRho), dtype=np.complex128))
     no_jump_term_2 = np.ascontiguousarray(np.zeros(np.shape(initialStateRho), dtype=np.complex128))
     inefficient_term = np.ascontiguousarray(np.zeros(np.shape(initialStateRho), dtype=np.complex128))
+
     for n_it, it in enumerate(timelist[:-1]):
         L_it = lindbladList(it, rho_trajectory[n_it])
         original_L_it = original_lindbladList(it)
@@ -91,7 +93,7 @@ def jumpRhoTrajectory_td(initialStateRho, timelist, drivingH, original_lindbladL
     return rho_trajectory
 
 @njit(complex128[:,:,:](complex128[:,:], float64[:], complex128[:,:], complex128[:,:,:], complex128[:], complex128[:,:,:], complex128[:], int64))
-def jumpRhoTrajectory_(initialStateRho, timelist, drivingH, original_lindbladList, eta_diag, lindbladList, coherent_fields, seed=0):
+def jumpRhoTrajectory_(initialStateRho, timelist, drivingH, original_lindbladList, eta_diag, lindbladList, coherent_fields, seed):
     ## Timelist details
     timeSteps = np.shape(timelist)[0]
     dt = timelist[1] - timelist[0]

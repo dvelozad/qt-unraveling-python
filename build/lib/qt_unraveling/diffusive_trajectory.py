@@ -7,10 +7,13 @@ Year: 2022
 ***************************************
 '''
 import numpy as np
-from numpy.random import normal, seed
-from numba import njit, objmode, float64, complex128, int64
-import usual_operators_ as op
+from numba import njit, objmode, float64, complex128, int64, types
 
+import qt_unraveling.usual_operators_ as op
+
+##########################################################################################
+## Euler integrator 
+##########################################################################################
 @njit
 def diffusiveRhoEulerStep_(stateRho, drivingH, original_L_it, L_it, zeta, dt):
     ## Lindblad super op
@@ -23,8 +26,50 @@ def diffusiveRhoEulerStep_(stateRho, drivingH, original_L_it, L_it, zeta, dt):
 
     return -1j*op.Com(drivingH, stateRho)*dt + D_c + Hw
 
+##########################################################################################
+## Milstein integrator 
+##########################################################################################   
 @njit
-def diffusiveRhoTrajectory_td(initialStateRho, timelist, drivingH, original_lindbladList, lindbladList, seed=0):
+def diffusiveRhoMilstein_f(drivingH, original_L_it, stateRho):
+    commu1 = -1j*op.Com(drivingH, stateRho)                     
+    Dc = op.D_vec(original_L_it, stateRho)
+    return commu1 + Dc 
+
+@njit
+def diffusiveRhoMilstein_g(L_it, stateRho):
+    HW = np.zeros((np.shape(L_it)[0],)+np.shape(stateRho), dtype = np.complex128)
+    for n_L, L_i in enumerate(L_it):
+        HW[n_L] += op.H(L_i, stateRho)
+    return HW
+
+@njit
+def diffusiveRhoMilsteinStep(stateRho, drivingH, original_L_it, L_it, zeta, dt):
+
+    gi = diffusiveRhoMilstein_g(L_it, stateRho)
+    fi = diffusiveRhoMilstein_f(drivingH, original_L_it, stateRho)
+
+    G_w = np.zeros(np.shape(stateRho), dtype = np.complex128)
+    G_aux = np.zeros(np.shape(stateRho), dtype = np.complex128)
+
+    for n_Li, L_i in enumerate(L_it):
+        dw_i = zeta[n_Li]*np.sqrt(dt)
+        G_w += dw_i*gi[n_Li]
+
+        for n_Lj, L_j in enumerate(L_it):
+            dw_j = zeta[n_Lj]*np.sqrt(dt)
+
+            if n_Li == n_Lj:
+                G_aux += 0.5*op.H_DH(L_i, L_j, stateRho)*(dw_i*dw_j - dt)
+            else:
+                G_aux += 0.5*op.H_DH(L_i, L_j, stateRho)*dw_i*dw_j
+
+    return fi*dt + G_aux + G_w
+
+############################################
+######  diffusive trajectory functions #####
+############################################
+@njit
+def diffusiveRhoTrajectory_td(initialStateRho, timelist, drivingH, original_lindbladList, lindbladList, method='euler', seed=0):
     ## Timelist details
     timeSteps = np.shape(timelist)[0]
     dt = timelist[1] - timelist[0]
@@ -35,22 +80,31 @@ def diffusiveRhoTrajectory_td(initialStateRho, timelist, drivingH, original_lind
     ## Stocastics increments
     zeta = 0
     with objmode(zeta='float64[:,:]'):
-        rng = np.random.default_rng(143525+seed**10)
+        rng = np.random.default_rng(seed)
         zeta = rng.normal(loc=0, scale=1, size=(number_lindblad_op, timeSteps))
 
     rho_trajectory = np.ascontiguousarray(np.empty(np.shape(timelist) + np.shape(initialStateRho), dtype=np.complex128))
     rho_trajectory[0,:,:] = np.ascontiguousarray(initialStateRho)
-    for n_it, it in enumerate(timelist[:-1]):
-        ## Lindblad ops for time it
-        L_it = lindbladList(it, rho_trajectory[n_it])
-        original_L_it = original_lindbladList(it)
-        
-        rho_trajectory[n_it+1,:,:] = rho_trajectory[n_it] + diffusiveRhoEulerStep_(rho_trajectory[n_it], drivingH(it), original_L_it, L_it, zeta[:, n_it], dt)
-        rho_trajectory[n_it+1,:,:] = rho_trajectory[n_it+1,:,:]/np.linalg.norm(rho_trajectory[n_it+1,:,:])
+
+    ## Integrator
+    if method == 'euler':
+        for n_it, it in enumerate(timelist[:-1]):
+            ## Lindblad ops for time it
+            L_it = lindbladList(it, rho_trajectory[n_it])
+            original_L_it = original_lindbladList(it)
+            rho_trajectory[n_it+1,:,:] = rho_trajectory[n_it] + diffusiveRhoEulerStep_(rho_trajectory[n_it], drivingH(it), original_L_it, L_it, zeta[:, n_it], dt)
+            
+    elif method == 'milstein':
+        for n_it, it in enumerate(timelist[:-1]):
+            ## Lindblad ops for time it
+            L_it = lindbladList(it, rho_trajectory[n_it])
+            original_L_it = original_lindbladList(it)
+            rho_trajectory[n_it+1,:,:] = rho_trajectory[n_it] + diffusiveRhoMilsteinStep(rho_trajectory[n_it], drivingH(it), original_L_it, L_it, zeta[:, n_it], dt)
+
     return rho_trajectory
 
-@njit(complex128[:,:,:](complex128[:,:], float64[:], complex128[:,:], complex128[:,:,:], complex128[:,:,:], int64))
-def diffusiveRhoTrajectory_(initialStateRho, timelist, drivingH, original_lindbladList, lindbladList, seed=0):
+@njit(complex128[:,:,:](complex128[:,:], float64[:], complex128[:,:], complex128[:,:,:], complex128[:,:,:], types.unicode_type, int64))
+def diffusiveRhoTrajectory_(initialStateRho, timelist, drivingH, original_lindbladList, lindbladList, method='euler', seed=0):
     ## Timelist details
     timeSteps = np.shape(timelist)[0]
     dt = timelist[1] - timelist[0]
@@ -61,12 +115,22 @@ def diffusiveRhoTrajectory_(initialStateRho, timelist, drivingH, original_lindbl
     ## Stocastics increments
     zeta = 0
     with objmode(zeta='float64[:,:]'):
-        rng = np.random.default_rng(143525+seed**10)
+        rng = np.random.default_rng(seed)
         zeta = rng.normal(loc=0, scale=1, size=(number_lindblad_op, timeSteps))
 
     rho_trajectory = np.ascontiguousarray(np.empty(np.shape(timelist) + np.shape(initialStateRho), dtype=np.complex128))
     rho_trajectory[0,:,:] = np.ascontiguousarray(initialStateRho)
-    for n_it, it in enumerate(timelist[:-1]):       
-        rho_trajectory[n_it+1,:,:] = rho_trajectory[n_it] + diffusiveRhoEulerStep_(rho_trajectory[n_it], drivingH, original_lindbladList, lindbladList, zeta[:, n_it], dt)
-        rho_trajectory[n_it+1,:,:] = rho_trajectory[n_it+1,:,:]/np.linalg.norm(rho_trajectory[n_it+1,:,:])
+
+    ## Integrator
+    if method == 'euler':
+        for n_it, it in enumerate(timelist[:-1]):       
+            rho_trajectory[n_it+1,:,:] = rho_trajectory[n_it] + diffusiveRhoEulerStep_(rho_trajectory[n_it], drivingH, original_lindbladList, lindbladList, zeta[:, n_it], dt)
+
+    elif method == 'milstein':
+        for n_it, it in enumerate(timelist[:-1]):       
+            rho_trajectory[n_it+1,:,:] = rho_trajectory[n_it] + diffusiveRhoMilsteinStep(rho_trajectory[n_it], drivingH, original_lindbladList, lindbladList, zeta[:, n_it], dt)
+
     return rho_trajectory
+
+
+

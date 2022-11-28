@@ -7,11 +7,13 @@ Year: 2022
 ***************************************
 '''
 import numpy as np
-from numpy.random import normal, seed
 from numba import njit, objmode
-import usual_operators_ as op
-import misc_func as misc
 
+import qt_unraveling.usual_operators_ as op
+
+##########################################################################################
+## Euler integrator 
+##########################################################################################
 @njit
 def feedbackRhoEulerStep_(stateRho, drivingH, L_it, F_it, zeta, dt):
     stateRho = np.ascontiguousarray(stateRho)
@@ -31,6 +33,9 @@ def feedbackRhoEulerStep_(stateRho, drivingH, L_it, F_it, zeta, dt):
 
     return -1j*dt*(op.Com(drivingH, stateRho) + comm_extra_term) + D_c + D_f + Hw
 
+###########################################
+######  feedback trajectory functions #####
+###########################################
 @njit
 def feedbackRhoTrajectory_(initialStateRho, timelist, drivingH, lindbladList, Flist, seed=0):
     ## Timelist details
@@ -43,7 +48,7 @@ def feedbackRhoTrajectory_(initialStateRho, timelist, drivingH, lindbladList, Fl
     ## Stocastics increments
     zeta = 0
     with objmode(zeta='float64[:,:]'):
-        rng = np.random.default_rng(143525+seed**10)
+        rng = np.random.default_rng(seed)
         zeta = rng.normal(loc=0, scale=1, size=(number_lindblad_op, timeSteps))
 
     rho_trajectory = np.ascontiguousarray(np.zeros((timeSteps, np.shape(initialStateRho)[0], np.shape(initialStateRho)[0]), dtype=np.complex128))

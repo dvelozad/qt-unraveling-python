@@ -5,17 +5,19 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="qt_unraveling",
-    version="0.2.3",
+    version="0.2.4",
     author="Diego Veloza Diaz",
     author_email="dvelozad@unal.edu.co",
     description="Library focused on simulate quantum trajectories with different unravelings",
     url="https://github.com/dvelozad/qt-unraveling-python",
     keywords = ['python','quantum control', 'unraveling', 'master equation', 'lindblad', 'open systems'],
-    download_url = 'https://github.com/dvelozad/qt-unraveling-python/archive/refs/tags/v0.2.3.tar.gz',   
+    download_url = 'https://github.com/dvelozad/qt-unraveling-python/archive/refs/tags/v0.2.4.tar.gz',   
     packages=['qt_unraveling'],
     install_requires=[            # I get to this in a second
           'numpy',
-          'numba'
+          'numba',
+          'scipy',
+          'matplotlib'
       ],
     classifiers=[
         'Development Status :: 3 - Alpha',      

@@ -84,6 +84,15 @@ def operators_Mrep(mMatrix, c):
 def sqrt_jit(M):
     # Computing diagonalization
     evalues, evectors = np.linalg.eig(M)
+
     # Ensuring square root matrix exists
     sqrt_matrix = evectors @ np.diag(np.sqrt(evalues)) @ np.linalg.inv(evectors)
     return sqrt_matrix
+
+@njit(complex128[:,:](complex128[:,:], complex128[:,:], complex128[:,:]))
+def H_DH(CA, CB, rho):
+    CA, CB, rho = np.ascontiguousarray(CA), np.ascontiguousarray(CB), np.ascontiguousarray(rho)
+    A1 = np.dot(np.dot(CB,CA),rho) + np.dot(np.dot(CB,rho),np.transpose(np.conjugate(CA))) + np.dot(np.dot(CA,rho),np.transpose(np.conjugate(CB))) + np.dot(np.dot(rho,np.transpose(np.conjugate(CA))),np.transpose(np.conjugate(CB)))
+    A2 = np.dot(CA,rho) + np.dot(rho,np.conjugate(np.transpose(CA)))
+    A3 = np.dot(CB,rho) + np.dot(rho,np.conjugate(np.transpose(CB)))
+    return A1 - np.trace(A2)*A3 - np.trace(A3)*A2 + 2*np.trace(A2)*np.trace(A3)*rho - rho*np.trace(A1)
