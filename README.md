@@ -3,15 +3,8 @@ The purpose of this project is to build a library that allows us to implement Qu
 
 Our python implementation is based on the complete unraveling parametrization developed in [[1]](https://arxiv.org/abs/1102.3073), including a Quantum jump unraveling scheme in principle compatible with this same parametrization. Additionally, it is included the Markovian feedback scheme studied in [[2]](https://arxiv.org/abs/1102.3098).
 
-# Dependencies
-We recommend to install the package [anaconda](https://www.anaconda.com/products/individual), however, it is not required. You can run the following to get the necessary packages:
-
-```python
-pip install numpy
-pip install scipy
-```
 # Installing
-You can install the library by running the code:
+You can install the library via pip:
 
 ```python
 pip install qt_unraveling
