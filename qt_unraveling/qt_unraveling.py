@@ -97,7 +97,7 @@ class System:
         ###################### M and U definitions ###########################
         ######################################################################
         ## Number of operators
-        if type(lindbladList).__name__ in ['ndarray']:
+        if type(lindbladList).__name__ in ['ndarray', 'list']:
             self.num_op = np.shape(lindbladList)[0]
         else:
             self.num_op = np.shape(lindbladList(0))[0]
@@ -185,11 +185,6 @@ class System:
         ## Get relevant matrices
         self.U_rep, self.M_rep, self.T_bar_rep = representation(self.num_op, mMatrix_suprt, uMatrix_suprt, HMatrix_suprt, oMatrix_suprt, TMatrix_suprt, PhiMatrix_suprt, WMatrix_suprt)
 
-        ## Adittional definitions 
-        self.M_dag = np.conjugate(np.transpose(np.asmatrix(self.M_rep)))
-        self.M_M_dag = np.round(np.asmatrix(self.M_rep).dot(self.M_dag),6)
-        self.sqrt_M_M_dag= sqrtm(np.identity(self.num_op) - self.M_M_dag)
-
         #########################################################
         #### M and U conditions 
         #########################################################
@@ -198,9 +193,14 @@ class System:
         #########################################################
         #### Lindblad operators related definitions  
         #########################################################
+        self.timedepent_lindbladoperators = False
         if not (lindbladList == []):
+            ## Adittional definitions 
+            self.M_dag = np.conjugate(np.transpose(np.asmatrix(self.M_rep)))
+            self.M_M_dag = np.round(np.asmatrix(self.M_rep).dot(self.M_dag),6)
+            self.sqrt_M_M_dag= sqrtm(np.identity(self.num_op) - self.M_M_dag)
+            
             self.original_obj_lindbladList = lindbladList
-            self.timedepent_lindbladoperators = False
             self.update_lindblad_operators(lindbladList)
             ## Lindblad operators must be a one argument function
             if not (type(lindbladList).__name__  in ['ndarray', 'CPUDispatcher']):
@@ -332,17 +332,17 @@ class System:
     ##############################################
     ######  Analitical integrators functions #####
     ##############################################
-    def vonneumannAnalitical(self):
+    def vonneumannAnalitical(self, method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
         op_lind = partial(vonneumann_operator, self.H)
-        return scipy_integrator(op_lind, self.initialStateRho, self.timeList)
+        return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method = method, rrtol = rrtol, aatol = aatol, last_point = last_point)
 
-    def lindbladAnalitical(self):
+    def lindbladAnalitical(self, method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
         op_lind = partial(standartLindblad_operator, self.H, self.cList)
-        return scipy_integrator(op_lind, self.initialStateRho, self.timeList)
+        return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method = method, rrtol = rrtol, aatol = aatol, last_point = last_point)
 
-    def feedbackEvol_operator(self):
+    def feedbackEvol_operator(self, method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
         op_lind = partial(feedbackEvol_operator, self.H, self.original_cList, self.cList, self.FList)
-        return scipy_integrator(op_lind, self.initialStateRho, self.timeList)
+        return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method = method, rrtol = rrtol, aatol = aatol, last_point = last_point)
 
     ############################################
     ######  diffusive trajectory functions #####

@@ -7,7 +7,7 @@ Year: 2022
 ***************************************
 '''
 import numpy as np
-from numba import njit, jit, complex128
+from numba import njit, jit, complex128, float64
 
 ## Pauli matrices
 sigmax = np.array([[0,1],[1,0]], dtype = np.complex128)
@@ -87,7 +87,7 @@ def sqrt_jit(M):
 
     # Ensuring square root matrix exists
     sqrt_matrix = evectors @ np.diag(np.sqrt(evalues)) @ np.linalg.inv(evectors)
-    return sqrt_matrix
+    return np.ascontiguousarray(sqrt_matrix)
 
 @njit(complex128[:,:](complex128[:,:], complex128[:,:], complex128[:,:]))
 def H_DH(CA, CB, rho):
@@ -96,3 +96,10 @@ def H_DH(CA, CB, rho):
     A2 = np.dot(CA,rho) + np.dot(rho,np.conjugate(np.transpose(CA)))
     A3 = np.dot(CB,rho) + np.dot(rho,np.conjugate(np.transpose(CB)))
     return A1 - np.trace(A2)*A3 - np.trace(A3)*A2 + 2*np.trace(A2)*np.trace(A3)*rho - rho*np.trace(A1)
+
+@njit(float64(complex128[:,:], complex128[:,:]))
+def fidelity(rho1, rho2):
+    rho1 = np.ascontiguousarray(rho1)
+    rho2 = np.ascontiguousarray(rho2)
+    srho1 = np.ascontiguousarray(sqrt_jit(rho1))
+    return np.real(np.trace(sqrt_jit(srho1.dot(rho2.dot(srho1)))))
