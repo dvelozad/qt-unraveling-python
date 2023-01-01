@@ -12,6 +12,26 @@ from scipy.integrate import solve_ivp
 
 import qt_unraveling.usual_operators_ as op
 
+@njit
+def custom_rungekutta_integrator(differential_operator, initialStateRho, timeList, last_point=False):
+    dt = timeList[1] - timeList[0]
+    
+    if last_point:
+        n_point = -1
+    else:
+        n_point = 0
+    
+    rho_list = np.zeros((np.shape(timeList)[0],np.shape(initialStateRho)[0],np.shape(initialStateRho)[1]), dtype=np.complex128)
+    rho_list[0] += initialStateRho
+    for n_ti, t_i in enumerate(timeList[:-1]):
+        n_ti += 1
+        a = differential_operator(rho_list[n_ti-1], t_i)
+        b = differential_operator(rho_list[n_ti-1] + 0.5*dt*a, t_i + 0.5*dt)
+        c = differential_operator(rho_list[n_ti-1] + 0.5*dt*b, t_i + 0.5*dt)
+        d = differential_operator(rho_list[n_ti-1] + dt*c, t_i + dt)
+        rho_list[n_ti] += rho_list[n_ti-1] + (1./6.)*dt*(a + 2*b + 2*c + d)
+    return rho_list[n_point:]
+    
 def scipy_integrator(differential_operator, initialStateRho, timeList, method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
     dim = np.shape(initialStateRho)[0]
     x0 = initialStateRho.reshape(-1) 
@@ -28,17 +48,39 @@ def scipy_integrator(differential_operator, initialStateRho, timeList, method = 
     else:
         sol = solve_ivp(odefun, [timeList[0], timeList[-1]], x0, t_eval = [timeList[-1]], method = method, rtol = rrtol, atol = aatol)
         rho_T = [sol.y[:,i].reshape([dim,dim]) for i in range(len(sol.t))] 
-        return rho_T[0]
+        return rho_T[-1:]
 
+@njit
 def vonneumann_operator(drivingH, stateRho, it):
     unitary_evolution = -1j*op.Com(drivingH(it), stateRho)
     return unitary_evolution
 
+@njit
 def standartLindblad_operator(drivingH, lindbladList, stateRho, it):
     c = lindbladList(it, stateRho) ## Original operators
     unitary_evolution = -1j*op.Com(drivingH(it), stateRho)
     Dc = op.D_vec(c, stateRho)
     return unitary_evolution + Dc
+
+@njit
+def feedbackEvol_operator(drivingH, original_lindbladList, lindbladList, Flist, stateRho, it):
+    L_it = lindbladList(it, stateRho)   ## Original operators
+    O_L_it = original_lindbladList(it)
+    F_it = Flist(it, stateRho)
+
+    stateRho = np.ascontiguousarray(stateRho)
+    ## Lindblad super op
+    D_c = op.D_vec(O_L_it, stateRho)
+    D_f = op.D_vec(F_it, stateRho)
+
+    ## Stocastic contribution
+    comm_extra_term = np.zeros(np.shape(stateRho), dtype=np.complex128)
+    for n_L, L in enumerate(L_it):
+        L = np.ascontiguousarray(L)
+        drho_rhod = np.dot(L, stateRho) + np.dot(stateRho, np.conjugate(np.transpose(L)))
+        comm_extra_term += op.Com(F_it[n_L], drho_rhod)
+
+    return -1j*(op.Com(drivingH(it), stateRho) + comm_extra_term) + D_c + D_f 
 
 def feedbackEvoladaptative_operator(System_obj, stateRho, it):
     drivingH = System_obj.H
@@ -109,22 +151,3 @@ def feedbackEvoladaptative_operator(System_obj, stateRho, it):
 #         comm_extra_term += op.Com(F_it[n_L], drho_rhod)
 
 #     return -1j*(op.Com(drivingH(it), stateRho) + comm_extra_term) + D_c + D_f 
-
-def feedbackEvol_operator(drivingH, original_lindbladList, lindbladList, Flist, stateRho, it):
-    L_it = lindbladList(it, stateRho)   ## Original operators
-    O_L_it = original_lindbladList(it)
-    F_it = Flist(it, stateRho)
-
-    stateRho = np.ascontiguousarray(stateRho)
-    ## Lindblad super op
-    D_c = op.D_vec(O_L_it, stateRho)
-    D_f = op.D_vec(F_it, stateRho)
-
-    ## Stocastic contribution
-    comm_extra_term = np.zeros(np.shape(stateRho), dtype=np.complex128)
-    for n_L, L in enumerate(L_it):
-        L = np.ascontiguousarray(L)
-        drho_rhod = np.dot(L, stateRho) + np.dot(stateRho, np.conjugate(np.transpose(L)))
-        comm_extra_term += op.Com(F_it[n_L], drho_rhod)
-
-    return -1j*(op.Com(drivingH(it), stateRho) + comm_extra_term) + D_c + D_f 

@@ -8,7 +8,7 @@ Year: 2022
 '''
 import numpy as np
 from scipy.linalg import sqrtm
-from numba import jit, objmode
+from numba import jit, objmode, njit
 import warnings
 
 from functools import partial
@@ -25,7 +25,7 @@ from qt_unraveling.feedback_trajectory import feedbackRhoTrajectory_
 from qt_unraveling.jumpy_trajectory import jumpRhoTrajectory_, jumpRhoTrajectory_td
 
 ## import integrators
-from qt_unraveling.integrators import scipy_integrator, vonneumann_operator, standartLindblad_operator, feedbackEvol_operator
+from qt_unraveling.integrators import custom_rungekutta_integrator, scipy_integrator, vonneumann_operator, standartLindblad_operator, feedbackEvol_operator
 
 class System:
     def __init__(self, drivingH, initialState, timeList, *, lindbladList = [], FList = [], uMatrix = [], mMatrix = [], oMatrix = [], HMatrix = [], TMatrix = [], WMatrix = [], PhiMatrix = []):
@@ -332,17 +332,41 @@ class System:
     ##############################################
     ######  Analitical integrators functions #####
     ##############################################
-    def vonneumannAnalitical(self, method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
-        op_lind = partial(vonneumann_operator, self.H)
-        return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method = method, rrtol = rrtol, aatol = aatol, last_point = last_point)
+    def vonneumannAnalitical(self, integrator = 'scipy', method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
+        hamiltonian = self.H
+        @njit
+        def op_lind(rho_it, it):
+            return vonneumann_operator(hamiltonian, rho_it, it)
 
-    def lindbladAnalitical(self, method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
-        op_lind = partial(standartLindblad_operator, self.H, self.cList)
-        return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method = method, rrtol = rrtol, aatol = aatol, last_point = last_point)
+        if integrator == 'scipy':
+            return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method = method, rrtol = rrtol, aatol = aatol, last_point = last_point)
+        elif integrator == 'runge-kutta':
+            return custom_rungekutta_integrator(op_lind, self.initialStateRho, self.timeList, last_point = last_point)
 
-    def feedbackEvol_operator(self, method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
-        op_lind = partial(feedbackEvol_operator, self.H, self.original_cList, self.cList, self.FList)
-        return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method = method, rrtol = rrtol, aatol = aatol, last_point = last_point)
+    def lindbladAnalitical(self, integrator = 'scipy', method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
+        hamiltonian = self.H
+        lindblad_ops = self.cList
+        @njit
+        def op_lind(rho_it, it):
+            return standartLindblad_operator(hamiltonian, lindblad_ops, rho_it, it)
+
+        if integrator == 'scipy':
+            return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method = method, rrtol = rrtol, aatol = aatol, last_point = last_point)
+        elif integrator == 'runge-kutta':
+            return custom_rungekutta_integrator(op_lind, self.initialStateRho, self.timeList, last_point = last_point)
+
+    def feedbackEvol_operator(self, integrator = 'scipy', method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
+        hamiltonian = self.H
+        lindblad_ops = self.cList
+        feedback_ops = self.FList
+        @njit
+        def op_lind(rho_it, it):
+            return feedbackEvol_operator(hamiltonian, lindblad_ops, feedback_ops, rho_it, it)
+
+        if integrator == 'scipy':
+            return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method = method, rrtol = rrtol, aatol = aatol, last_point = last_point)
+        elif integrator == 'runge-kutta':
+            return custom_rungekutta_integrator(op_lind, self.initialStateRho, self.timeList, last_point = last_point)
 
     ############################################
     ######  diffusive trajectory functions #####
