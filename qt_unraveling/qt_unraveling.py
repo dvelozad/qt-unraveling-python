@@ -355,13 +355,14 @@ class System:
         elif integrator == 'runge-kutta':
             return custom_rungekutta_integrator(op_lind, self.initialStateRho, self.timeList, last_point = last_point)
 
-    def feedbackEvol_operator(self, integrator = 'scipy', method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
+    def feedbackAnalitical(self, integrator = 'scipy', method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
         hamiltonian = self.H
         lindblad_ops = self.cList
+        original_lindblad_ops = self.original_cList
         feedback_ops = self.FList
         @njit
         def op_lind(rho_it, it):
-            return feedbackEvol_operator(hamiltonian, lindblad_ops, feedback_ops, rho_it, it)
+            return feedbackEvol_operator(hamiltonian, original_lindblad_ops, lindblad_ops, feedback_ops, rho_it, it)
 
         if integrator == 'scipy':
             return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method = method, rrtol = rrtol, aatol = aatol, last_point = last_point)
