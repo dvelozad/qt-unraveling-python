@@ -8,7 +8,7 @@ Year: 2022
 '''
 import numpy as np
 from scipy.linalg import sqrtm
-from numba import jit, objmode
+from numba import jit, objmode, njit
 import warnings
 
 from functools import partial
@@ -25,7 +25,7 @@ from qt_unraveling.feedback_trajectory import feedbackRhoTrajectory_
 from qt_unraveling.jumpy_trajectory import jumpRhoTrajectory_, jumpRhoTrajectory_td
 
 ## import integrators
-from qt_unraveling.integrators import scipy_integrator, vonneumann_operator, standartLindblad_operator, feedbackEvol_operator
+from qt_unraveling.integrators import custom_rungekutta_integrator, scipy_integrator, vonneumann_operator, standartLindblad_operator, feedbackEvol_operator
 
 class System:
     def __init__(self, drivingH, initialState, timeList, *, lindbladList = [], FList = [], uMatrix = [], mMatrix = [], oMatrix = [], HMatrix = [], TMatrix = [], WMatrix = [], PhiMatrix = []):
@@ -97,7 +97,7 @@ class System:
         ###################### M and U definitions ###########################
         ######################################################################
         ## Number of operators
-        if type(lindbladList).__name__ in ['ndarray']:
+        if type(lindbladList).__name__ in ['ndarray', 'list']:
             self.num_op = np.shape(lindbladList)[0]
         else:
             self.num_op = np.shape(lindbladList(0))[0]
@@ -185,11 +185,6 @@ class System:
         ## Get relevant matrices
         self.U_rep, self.M_rep, self.T_bar_rep = representation(self.num_op, mMatrix_suprt, uMatrix_suprt, HMatrix_suprt, oMatrix_suprt, TMatrix_suprt, PhiMatrix_suprt, WMatrix_suprt)
 
-        ## Adittional definitions 
-        self.M_dag = np.conjugate(np.transpose(np.asmatrix(self.M_rep)))
-        self.M_M_dag = np.round(np.asmatrix(self.M_rep).dot(self.M_dag),6)
-        self.sqrt_M_M_dag= sqrtm(np.identity(self.num_op) - self.M_M_dag)
-
         #########################################################
         #### M and U conditions 
         #########################################################
@@ -198,9 +193,14 @@ class System:
         #########################################################
         #### Lindblad operators related definitions  
         #########################################################
+        self.timedepent_lindbladoperators = False
         if not (lindbladList == []):
+            ## Adittional definitions 
+            self.M_dag = np.conjugate(np.transpose(np.asmatrix(self.M_rep)))
+            self.M_M_dag = np.round(np.asmatrix(self.M_rep).dot(self.M_dag),6)
+            self.sqrt_M_M_dag= sqrtm(np.identity(self.num_op) - self.M_M_dag)
+            
             self.original_obj_lindbladList = lindbladList
-            self.timedepent_lindbladoperators = False
             self.update_lindblad_operators(lindbladList)
             ## Lindblad operators must be a one argument function
             if not (type(lindbladList).__name__  in ['ndarray', 'CPUDispatcher']):
@@ -332,17 +332,42 @@ class System:
     ##############################################
     ######  Analitical integrators functions #####
     ##############################################
-    def vonneumannAnalitical(self):
-        op_lind = partial(vonneumann_operator, self.H)
-        return scipy_integrator(op_lind, self.initialStateRho, self.timeList)
+    def vonneumannAnalitical(self, integrator = 'scipy', method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
+        hamiltonian = self.H
+        @njit
+        def op_lind(rho_it, it):
+            return vonneumann_operator(hamiltonian, rho_it, it)
 
-    def lindbladAnalitical(self):
-        op_lind = partial(standartLindblad_operator, self.H, self.cList)
-        return scipy_integrator(op_lind, self.initialStateRho, self.timeList)
+        if integrator == 'scipy':
+            return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method = method, rrtol = rrtol, aatol = aatol, last_point = last_point)
+        elif integrator == 'runge-kutta':
+            return custom_rungekutta_integrator(op_lind, self.initialStateRho, self.timeList, last_point = last_point)
 
-    def feedbackEvol_operator(self):
-        op_lind = partial(feedbackEvol_operator, self.H, self.original_cList, self.cList, self.FList)
-        return scipy_integrator(op_lind, self.initialStateRho, self.timeList)
+    def lindbladAnalitical(self, integrator = 'scipy', method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
+        hamiltonian = self.H
+        lindblad_ops = self.cList
+        @njit
+        def op_lind(rho_it, it):
+            return standartLindblad_operator(hamiltonian, lindblad_ops, rho_it, it)
+
+        if integrator == 'scipy':
+            return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method = method, rrtol = rrtol, aatol = aatol, last_point = last_point)
+        elif integrator == 'runge-kutta':
+            return custom_rungekutta_integrator(op_lind, self.initialStateRho, self.timeList, last_point = last_point)
+
+    def feedbackAnalitical(self, integrator = 'scipy', method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
+        hamiltonian = self.H
+        lindblad_ops = self.cList
+        original_lindblad_ops = self.original_cList
+        feedback_ops = self.FList
+        @njit
+        def op_lind(rho_it, it):
+            return feedbackEvol_operator(hamiltonian, original_lindblad_ops, lindblad_ops, feedback_ops, rho_it, it)
+
+        if integrator == 'scipy':
+            return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method = method, rrtol = rrtol, aatol = aatol, last_point = last_point)
+        elif integrator == 'runge-kutta':
+            return custom_rungekutta_integrator(op_lind, self.initialStateRho, self.timeList, last_point = last_point)
 
     ############################################
     ######  diffusive trajectory functions #####

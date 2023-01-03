@@ -10,12 +10,23 @@ import numpy as np
 import matplotlib.pyplot as plt
 from multiprocessing import Pool, cpu_count
 from numba import njit
+from tqdm import tqdm
 
-def parallel_run(fun, arg_list):
-    p = Pool(processes = cpu_count())
-    m = p.map(fun, arg_list)
-    p.terminate()
-    p.join() 
+def parallel_run(fun, arg_list, tqdm_bar=False):
+    if tqdm_bar:
+        m = []
+        with Pool(processes=cpu_count()) as p:
+            with tqdm(total=np.shape(arg_list)[0], ncols=60) as pbar:
+                for _ in p.imap(fun, arg_list):
+                    m.append(_)
+                    pbar.update()
+            p.terminate()
+            p.join() 
+    else:
+        p = Pool(processes = cpu_count())
+        m = p.map(fun, arg_list)
+        p.terminate()
+        p.join() 
     return m
 
 def figure():

@@ -14,7 +14,7 @@ Our python implementation is intended to generate a Class object called "System"
 ```python
 import qt_trajectories as qtr
 
-test = qtr.System(drivingH, initialState, timeList, lindbladList, uMatrix, HMatrix, mMatrix,  FList, amp)
+test = qtr.System(drivingH, initialState, timeList, lindbladList, uMatrix, HMatrix, mMatrix,  FList)
 ```
 where ```drivingH``` corresponds to the system's Hamiltonian given as a one-parameter python function returning a complex numpy array, even if the system is time-independent, for example:
 
