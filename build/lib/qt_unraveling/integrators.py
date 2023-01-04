@@ -13,14 +13,22 @@ from scipy.integrate import solve_ivp
 import qt_unraveling.usual_operators_ as op
 
 @njit
-def custom_rungekutta_integrator(differential_operator, initialStateRho, timeList, last_point=False):
+def custom_rungekutta_integrator_last_point(differential_operator, initialStateRho, timeList):
     dt = timeList[1] - timeList[0]
-    
-    if last_point:
-        n_point = -1
-    else:
-        n_point = 0
-    
+    rho_list = np.zeros((np.shape(initialStateRho)[0],np.shape(initialStateRho)[1]), dtype=np.complex128)
+    rho_list += initialStateRho
+    for n_ti, t_i in enumerate(timeList[:-1]):
+        n_ti += 1
+        a = differential_operator(rho_list, t_i)
+        b = differential_operator(rho_list + 0.5*dt*a, t_i + 0.5*dt)
+        c = differential_operator(rho_list + 0.5*dt*b, t_i + 0.5*dt)
+        d = differential_operator(rho_list + dt*c, t_i + dt)
+        rho_list += (1./6.)*dt*(a + 2*b + 2*c + d)
+    return [rho_list]
+
+@njit
+def custom_rungekutta_integrator_full_range(differential_operator, initialStateRho, timeList):
+    dt = timeList[1] - timeList[0]
     rho_list = np.zeros((np.shape(timeList)[0],np.shape(initialStateRho)[0],np.shape(initialStateRho)[1]), dtype=np.complex128)
     rho_list[0] += initialStateRho
     for n_ti, t_i in enumerate(timeList[:-1]):
@@ -30,7 +38,14 @@ def custom_rungekutta_integrator(differential_operator, initialStateRho, timeLis
         c = differential_operator(rho_list[n_ti-1] + 0.5*dt*b, t_i + 0.5*dt)
         d = differential_operator(rho_list[n_ti-1] + dt*c, t_i + dt)
         rho_list[n_ti] += rho_list[n_ti-1] + (1./6.)*dt*(a + 2*b + 2*c + d)
-    return rho_list[n_point:]
+    return rho_list
+
+def custom_rungekutta_integrator(differential_operator, initialStateRho, timeList, last_point=False):
+    if last_point:
+        rho_list = custom_rungekutta_integrator_last_point(differential_operator, initialStateRho, timeList)
+    else:
+        rho_list = custom_rungekutta_integrator_full_range(differential_operator, initialStateRho, timeList)
+    return rho_list
     
 def scipy_integrator(differential_operator, initialStateRho, timeList, method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
     dim = np.shape(initialStateRho)[0]
