@@ -212,41 +212,65 @@ Both trajectories look that like
 ![image](https://drive.google.com/uc?export=view&id=1CBG86cSnS5LvMWfO8G3ihX9XvC1oFtsJ)
 
 You can tweak the amplitudes as you see fit.
-### Markovian feedback
-Coming soon ...
-<!-- ### Markovian feedback
-To make use of feedback methods you have to include a one parameter function returning an array of numpy arrays for each feedback operator through the ```FList``` parameter:
+### Markovian quantum feedback
+Our Markovian quantum feedback implementeation is based on [[2]](https://arxiv.org/abs/1102.3098). As it is shown in previous sections, to make use of the feedback methods we have to include a jitted function returning an array of numpy arrays for each feedback operator or a numpy array conteining each feedback operator:
  ```python
-def F(t):
-    return [np.array([[0,1],[1,0]], dtype = np.complex128), 
-            np.array([[0,1j],[-1j,0]], dtype = np.complex128)]
+ ## time-depenedt feedback operators
+@jit(nopython=True)
+def F_func(t):
+    num_op = 2
+    F_list = np.zeros((num_op,2,2), dtype=np.complex128)
+    F_list[0] = np.sin(0.5*t)*qtr.sigmay
+    F_list[1] = np.sin(t)*qtr.sigmaz
+    return F_list
 
-test_Mrep = qtr.System(H0, rho0, t, L, mMatrix = m_matrix, FList = F)
-```
-Remenber that for each Lindblad operator defined in ```L(t)``` you must pass two Feedback matrices, this even for the case of an Homodyne type detection; assuming the detection of the x-quadrature you should define:
- ```python
-def F(t):
-    return [np.array([[0,1],[1,0]], dtype = np.complex128), 
-            np.zeros((2,2), dtype = np.complex128)]
-```
-All methods take the same form as for the Qjump and diffusive cases: To get an individual trajectory you can call:
- ```python
-ind_traj_rho = test.feedeRhoTrajectory()
-## returns [rho_t0, ...., rho_tf] 
-```
-To obtain an emsemble of N different trajectories you can call:
- ```python
-ensemble_rho = test.feedRhoEnsemble(N)
-## returns [[rho_1_t0, ..., rho_1_tf], ...., [rho_N_0, ..., rho_N_tf]] 
-```
-Finally, the average quantum trajectory is given by the function ```feedRhoAverage(n_trajectories)```:
- ```python
-average_feed = test.feedRhoAverage(n_trajectories = 250, method_ = "euler", parallelfor = True)
-anali_feed = test.feedAnaliticalUncond(3, 1e-12, 1e-12)
+## time-independent Lindblad ops
+F_list = np.sqrt(gamma)*np.array([qtr.sigmay, qtr.sigmaz], dtype=np.complex128)
 
-## Plot
-test.rhoBlochrep(average_feed, 'Diffusive', '-')
-test.rhoBlochrep(anali_feed, 'Analitical', '-')
-
+## System definition
+qtr_test = qtr.System(H0, initialState, timelist, lindbladList = L, FList = F_func, uMatrix=u_matrix)
+# qtr_test = qtr.System(H0, initialState, timelist, lindbladList = L, FList = F_list, uMatrix=u_matrix)
 ```
-![alt text](./examples/example_graphs/feed_test.png) -->
+Remember that for each Lindblad operator defined in ```lindbladList``` you must pass two Feedback matrices, this even for the case of an Homodyne type detection; assuming the detection of the x-quadrature you should define:
+ ```python
+@jit(nopython=True)
+def F_func(t):
+    num_op = 2
+    F_list = np.zeros((num_op,2,2), dtype=np.complex128)
+    F_list[0] = np.sin(0.5*t)*qtr.sigmay
+    F_list[1] = np.zeros((2,2), dtype = np.complex128)
+    return F_list
+```
+All methods take the same form as for the Qjump and diffusive cases: To get an individual trajectory you can call
+ ```python
+## single feedback trajectory
+ind_traj_rho = qtr_test.feedeRhoTrajectory()
+# returns [rho_t0, ...., rho_tf] 
+
+## plot trajectory
+qtr.misc.rhoBlochcomp_plot(feedback_traj, timelist, line='-')
+```
+![image](https://drive.google.com/uc?export=view&id=1HM0v_h6CVriLexpiTg4XIIQI79Y7UR6F)
+
+To obtain an emsemble of N different trajectories you can call
+ ```python
+## feedback emsemble
+ensemble_rho = qtr_test.feedRhoEnsemble(N)
+# returns [[rho_1_t0, ..., rho_1_tf], ...., [rho_N_0, ..., rho_N_tf]] 
+```
+The average quantum trajectory is given by the function ```feedRhoAverage(n_trajectories)```:
+ ```python
+ ## Average conditional feedrbac evoltuion
+average_feed = qtr_test.feedRhoAverage(n_trajectories = 1000)
+```
+And the analitical evolution in the presence of feedback is given by
+ ```python
+ ## Anlitical feedback evolution
+feedback_evol = qtr_test.feedbackAnalitical()
+
+## Feedback plot
+fig, ax = qtr.misc.figure()
+qtr.misc.rhoBlochcomp_plot(feedback_evol, timelist, label='analitical', ax=ax, line='-')
+qtr.misc.rhoBlochcomp_plot(average_feedback_traj, timelist, label='average', ax=ax, line='--')
+```
+![image](https://drive.google.com/uc?export=view&id=1wyG7ORvQkdxmuePVKBq6MfonZjL-nLfN)
