@@ -11,43 +11,43 @@ from numba import njit, complex128, float64
 from scipy.integrate import solve_ivp
 
 import qt_unraveling.usual_operators_ as op
+from qt_unraveling.qt_unraveling import System
 
-@njit
-def custom_rungekutta_integrator_last_point(differential_operator, initialStateRho, timeList):
-    dt = timeList[1] - timeList[0]
-    rho_list = np.zeros((np.shape(initialStateRho)[0],np.shape(initialStateRho)[1]), dtype=np.complex128)
-    rho_list += initialStateRho
-    for n_ti, t_i in enumerate(timeList[:-1]):
-        n_ti += 1
-        a = differential_operator(rho_list, t_i)
-        b = differential_operator(rho_list + 0.5*dt*a, t_i + 0.5*dt)
-        c = differential_operator(rho_list + 0.5*dt*b, t_i + 0.5*dt)
-        d = differential_operator(rho_list + dt*c, t_i + dt)
-        rho_list += (1./6.)*dt*(a + 2*b + 2*c + d)
-    return [rho_list]
-
-@njit
-def custom_rungekutta_integrator_full_range(differential_operator, initialStateRho, timeList):
-    dt = timeList[1] - timeList[0]
-    rho_list = np.zeros((np.shape(timeList)[0],np.shape(initialStateRho)[0],np.shape(initialStateRho)[1]), dtype=np.complex128)
-    rho_list[0] += initialStateRho
-    for n_ti, t_i in enumerate(timeList[:-1]):
-        n_ti += 1
-        a = differential_operator(rho_list[n_ti-1], t_i)
-        b = differential_operator(rho_list[n_ti-1] + 0.5*dt*a, t_i + 0.5*dt)
-        c = differential_operator(rho_list[n_ti-1] + 0.5*dt*b, t_i + 0.5*dt)
-        d = differential_operator(rho_list[n_ti-1] + dt*c, t_i + dt)
-        rho_list[n_ti] += rho_list[n_ti-1] + (1./6.)*dt*(a + 2*b + 2*c + d)
-    return rho_list
-
-def custom_rungekutta_integrator(differential_operator, initialStateRho, timeList, last_point=False):
+def custom_rungekutta_integrator(differential_operator : function, initialStateRho : np.ndarray, timeList : np.ndarray, last_point : bool = False) -> np.ndarray:
+    """
+    Performs the integration of the time-evolution of the differential_operator
+    
+    Parameters:
+    differential_operator (function): the differential operator to integrate as a njitted function
+    initialStateRho (array): Initial state
+    timeList (array): Time list to integrate
+    last_point (bool) : True to return just the final point of the evolution
+    
+    Returns:
+    rho_list (array): resulting array of density matrices for each time step if last_point False, the last point of evolution otherwise
+    """
     if last_point:
         rho_list = custom_rungekutta_integrator_last_point(differential_operator, initialStateRho, timeList)
     else:
         rho_list = custom_rungekutta_integrator_full_range(differential_operator, initialStateRho, timeList)
     return rho_list
     
-def scipy_integrator(differential_operator, initialStateRho, timeList, method = 'BDF', rrtol = 1e-5, aatol=1e-5, last_point=False):
+def scipy_integrator(differential_operator : function, initialStateRho : np.ndarray, timeList : np.ndarray, method : str = 'BDF', rrtol : float = 1e-5, aatol : float = 1e-5, last_point : bool = False) -> np.ndarray:
+    """
+    Performs the integration of the time-evolution of the differential_operator using the scipy solve_ivp function
+    
+    Parameters:
+    differential_operator (function): the differential operator to integrate as a njitted function
+    initialStateRho (array): Initial state
+    timeList (array): Time list to integrate
+    method (str) : scipy integrator method
+    rrtol (float) : If the relative error estimate is larger than rtol, the computation continues until the error is reduced below this threshold, or until a maximum number of iterations is reached
+    aatol (float) : The atol parameter sets the minimum absolute error tolerance for the solution. If the numerical method used by the function estimates that the absolute error in the solution is smaller than atol, the computation is considered to have converged and the function returns the solution
+    last_point (bool) : True to return just the final point of the evolution
+    
+    Returns:
+    rho_list (array): resulting array of density matrices for each time step if last_point False, the last point of evolution otherwise
+    """
     dim = np.shape(initialStateRho)[0]
     x0 = initialStateRho.reshape(-1) 
     ##################################################################
@@ -66,19 +66,56 @@ def scipy_integrator(differential_operator, initialStateRho, timeList, method = 
         return rho_T[-1:]
 
 @njit
-def vonneumann_operator(drivingH, stateRho, it):
+def vonneumann_operator(drivingH : function, stateRho : np.ndarray, it : float) -> np.ndarray:
+    """
+    Gives the evaluation of the von neumann equation differential operator for a given state and time
+    
+    Parameters:
+    drivingH (function): The Hamiltonian operator as a function of time
+    stateRho (array): density matrix state
+    it (float): time to evaluate
+
+    Returns:
+    unitary_evolution (array): resulting array of density matrices for each time step if last_point False, the last point of evolution otherwise
+    """
     unitary_evolution = -1j*op.Com(drivingH(it), stateRho)
     return unitary_evolution
 
 @njit
-def standartLindblad_operator(drivingH, lindbladList, stateRho, it):
+def standartLindblad_operator(drivingH : function, lindbladList : function, stateRho : np.ndarray, it : float) -> np.ndarray:
+    """
+    Gives the evaluation of the Lindablad equation differential operator for a given state and time
+    
+    Parameters:
+    drivingH (function): The Hamiltonian operator as a function of time
+    lindbladList (function) : List of Lindablad operators as a function of time and the state
+    stateRho (array): density matrix state
+    it (float): time to evaluate
+
+    Returns:
+    unitary_evolution + Dc (array): resulting array of density matrices for each time step if last_point False, the last point of evolution otherwise
+    """
     c = lindbladList(it, stateRho) ## Original operators
     unitary_evolution = -1j*op.Com(drivingH(it), stateRho)
     Dc = op.D_vec(c, stateRho)
     return unitary_evolution + Dc
 
 @njit
-def feedbackEvol_operator(drivingH, original_lindbladList, lindbladList, Flist, stateRho, it):
+def feedbackEvol_operator(drivingH : function, original_lindbladList : function, lindbladList : function, Flist : function, stateRho : np.ndarray, it : float) -> np.ndarray:
+    """
+    Gives the evaluation of the feedback equation differential operator for a given state and time for the case of fixed unraveling parametrization
+    
+    Parameters:
+    drivingH (function): The Hamiltonian operator as a function of time
+    original_lindbladList (function) : List of Linblad operators prior to applying the unraveling parametrization as a function of time
+    lindbladList (function) : List of Linblad operators posterior to applying the unraveling parametrization as a function of time and the state
+    Flist (function) : List of feedback operators as a function of time and state
+    stateRho (array): density matrix state
+    it (float): time to evaluate
+
+    Returns:
+    List of density matrices (array): resulting array of density matrices for each time step if last_point False, the last point of evolution otherwise
+    """
     L_it = lindbladList(it, stateRho)   ## Original operators
     O_L_it = original_lindbladList(it)
     F_it = Flist(it, stateRho)
@@ -97,7 +134,18 @@ def feedbackEvol_operator(drivingH, original_lindbladList, lindbladList, Flist, 
 
     return -1j*(op.Com(drivingH(it), stateRho) + comm_extra_term) + D_c + D_f 
 
-def feedbackEvoladaptative_operator(System_obj, stateRho, it):
+def feedbackEvoladaptative_operator(System_obj : System, stateRho : np.ndarray, it : float) -> np.ndarray:
+    """
+    Gives the evaluation of the feedback equation differential operator for a given state and time for adapative parametrization
+    
+    Parameters:
+    System_obj (System) : System class object where all the systems details are defined
+    stateRho (array): density matrix state
+    it (float): time to evaluate
+
+    Returns:
+    List of density matrices (array): resulting array of density matrices for each time step if last_point False, the last point of evolution otherwise
+    """
     drivingH = System_obj.H
     lindbladList = System_obj.original_cList
     Flist = System_obj.FList
@@ -166,3 +214,54 @@ def feedbackEvoladaptative_operator(System_obj, stateRho, it):
 #         comm_extra_term += op.Com(F_it[n_L], drho_rhod)
 
 #     return -1j*(op.Com(drivingH(it), stateRho) + comm_extra_term) + D_c + D_f 
+
+
+@njit
+def custom_rungekutta_integrator_last_point(differential_operator : function, initialStateRho : np.ndarray, timeList : np.ndarray) -> np.ndarray:
+    """
+    Performs the integration of the time-evolution of the differential_operator
+    
+    Parameters:
+    differential_operator (function): the differential operator to integrate as a njitted function
+    initialStateRho (array): Initial state
+    timeList (array): Time list to integrate
+    
+    Returns:
+    np.array([rho_list]) (array): resulting final density matrix
+    """
+    dt = timeList[1] - timeList[0]
+    rho_list = np.zeros((np.shape(initialStateRho)[0],np.shape(initialStateRho)[1]), dtype=np.complex128)
+    rho_list += initialStateRho
+    for n_ti, t_i in enumerate(timeList[:-1]):
+        n_ti += 1
+        a = differential_operator(rho_list, t_i)
+        b = differential_operator(rho_list + 0.5*dt*a, t_i + 0.5*dt)
+        c = differential_operator(rho_list + 0.5*dt*b, t_i + 0.5*dt)
+        d = differential_operator(rho_list + dt*c, t_i + dt)
+        rho_list += (1./6.)*dt*(a + 2*b + 2*c + d)
+    return np.array([rho_list])
+
+@njit
+def custom_rungekutta_integrator_full_range(differential_operator : function, initialStateRho : np.ndarray, timeList : np.ndarray) -> np.ndarray:
+    """
+    Performs the integration of the time-evolution of the differential_operator
+    
+    Parameters:
+    differential_operator (function): the differential operator to integrate as a njitted function
+    initialStateRho (array): Initial state
+    timeList (array): Time list to integrate
+    
+    Returns:
+    np.array([rho_list]) (array): resulting array of density matrices for each time step
+    """
+    dt = timeList[1] - timeList[0]
+    rho_list = np.zeros((np.shape(timeList)[0],np.shape(initialStateRho)[0],np.shape(initialStateRho)[1]), dtype=np.complex128)
+    rho_list[0] += initialStateRho
+    for n_ti, t_i in enumerate(timeList[:-1]):
+        n_ti += 1
+        a = differential_operator(rho_list[n_ti-1], t_i)
+        b = differential_operator(rho_list[n_ti-1] + 0.5*dt*a, t_i + 0.5*dt)
+        c = differential_operator(rho_list[n_ti-1] + 0.5*dt*b, t_i + 0.5*dt)
+        d = differential_operator(rho_list[n_ti-1] + dt*c, t_i + dt)
+        rho_list[n_ti] += rho_list[n_ti-1] + (1./6.)*dt*(a + 2*b + 2*c + d)
+    return rho_list
