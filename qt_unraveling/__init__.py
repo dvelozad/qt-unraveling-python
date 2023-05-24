@@ -1,7 +1,7 @@
 """
 qt_unraveling
 """
-__version__ = "0.2.6"
+__version__ = "0.2.7"
 __author__ = 'Diego Veloza Diaz'
 __credits__ = 'Chaos and complexity group'
 

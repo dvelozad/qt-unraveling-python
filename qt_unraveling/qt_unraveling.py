@@ -21,7 +21,7 @@ from qt_unraveling.usual_operators_ import operators_Mrep, sqrt_jit
 
 ## Trajectory modules
 from qt_unraveling.diffusive_trajectory import diffusiveRhoTrajectory_, diffusiveRhoTrajectory_td
-from qt_unraveling.feedback_trajectory import feedbackRhoTrajectory_
+from qt_unraveling.feedback_trajectory import feedbackRhoTrajectory_, feedbackRhoTrajectory_delay
 from qt_unraveling.jumpy_trajectory import jumpRhoTrajectory_, jumpRhoTrajectory_td
 
 ## import integrators
@@ -520,6 +520,25 @@ class System:
 
         rho_average = np.zeros(np.shape(self.timeList) + np.shape(self.initialStateRho), dtype=np.complex128)       
         all_traj = parallel_run(self.feedbackRhoTrajectory, np.arange(n_trajectories))
+        for rho_traj in all_traj:
+            rho_average = rho_average + (1/n_trajectories)*rho_traj
+        return rho_average
+    
+    def feedbackRhoTrajectory_delay(self, tau, seed=0):
+        if not self.feedbackRhoTrajectory_compilation_status:
+            self.feedbackRhoTrajectory_compilation_status = True
+            print('Compiling feedbackRhoTrajectory ...')
+        return partial(feedbackRhoTrajectory_delay, self.initialStateRho, self.timeList, self.H, self.original_lindbladList, self.cList, self.FList, tau)(seed)
+
+    def feedbackRhoAverage_delay(self, n_trajectories, tau):
+        if not self.feedbackRhoAverage_compilation_status:
+            self.feedbackRhoAverage_compilation_status = True
+            print('Compiling feedbackRhoAverage ...')
+            tmp = self.feedbackRhoTrajectory_delay(tau=0, seed=0)
+            del tmp
+
+        rho_average = np.zeros(np.shape(self.timeList) + np.shape(self.initialStateRho), dtype=np.complex128)       
+        all_traj = parallel_run(partial(self.feedbackRhoTrajectory_delay, tau), np.arange(n_trajectories))
         for rho_traj in all_traj:
             rho_average = rho_average + (1/n_trajectories)*rho_traj
         return rho_average

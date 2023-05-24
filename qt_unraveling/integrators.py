@@ -11,9 +11,8 @@ from numba import njit, complex128, float64
 from scipy.integrate import solve_ivp
 
 import qt_unraveling.usual_operators_ as op
-from qt_unraveling.qt_unraveling import System
 
-def custom_rungekutta_integrator(differential_operator : function, initialStateRho : np.ndarray, timeList : np.ndarray, last_point : bool = False) -> np.ndarray:
+def custom_rungekutta_integrator(differential_operator, initialStateRho : np.ndarray, timeList : np.ndarray, last_point : bool = False) -> np.ndarray:
     """
     Performs the integration of the time-evolution of the differential_operator
     
@@ -32,7 +31,7 @@ def custom_rungekutta_integrator(differential_operator : function, initialStateR
         rho_list = custom_rungekutta_integrator_full_range(differential_operator, initialStateRho, timeList)
     return rho_list
     
-def scipy_integrator(differential_operator : function, initialStateRho : np.ndarray, timeList : np.ndarray, method : str = 'BDF', rrtol : float = 1e-5, aatol : float = 1e-5, last_point : bool = False) -> np.ndarray:
+def scipy_integrator(differential_operator, initialStateRho : np.ndarray, timeList : np.ndarray, method : str = 'BDF', rrtol : float = 1e-5, aatol : float = 1e-5, last_point : bool = False) -> np.ndarray:
     """
     Performs the integration of the time-evolution of the differential_operator using the scipy solve_ivp function
     
@@ -66,7 +65,7 @@ def scipy_integrator(differential_operator : function, initialStateRho : np.ndar
         return rho_T[-1:]
 
 @njit
-def vonneumann_operator(drivingH : function, stateRho : np.ndarray, it : float) -> np.ndarray:
+def vonneumann_operator(drivingH, stateRho : np.ndarray, it : float) -> np.ndarray:
     """
     Gives the evaluation of the von neumann equation differential operator for a given state and time
     
@@ -82,7 +81,7 @@ def vonneumann_operator(drivingH : function, stateRho : np.ndarray, it : float) 
     return unitary_evolution
 
 @njit
-def standartLindblad_operator(drivingH : function, lindbladList : function, stateRho : np.ndarray, it : float) -> np.ndarray:
+def standartLindblad_operator(drivingH, lindbladList, stateRho : np.ndarray, it : float) -> np.ndarray:
     """
     Gives the evaluation of the Lindablad equation differential operator for a given state and time
     
@@ -101,7 +100,7 @@ def standartLindblad_operator(drivingH : function, lindbladList : function, stat
     return unitary_evolution + Dc
 
 @njit
-def feedbackEvol_operator(drivingH : function, original_lindbladList : function, lindbladList : function, Flist : function, stateRho : np.ndarray, it : float) -> np.ndarray:
+def feedbackEvol_operator(drivingH, original_lindbladList, lindbladList, Flist, stateRho : np.ndarray, it : float) -> np.ndarray:
     """
     Gives the evaluation of the feedback equation differential operator for a given state and time for the case of fixed unraveling parametrization
     
@@ -134,7 +133,7 @@ def feedbackEvol_operator(drivingH : function, original_lindbladList : function,
 
     return -1j*(op.Com(drivingH(it), stateRho) + comm_extra_term) + D_c + D_f 
 
-def feedbackEvoladaptative_operator(System_obj : System, stateRho : np.ndarray, it : float) -> np.ndarray:
+def feedbackEvoladaptative_operator(System_obj, stateRho : np.ndarray, it : float) -> np.ndarray:
     """
     Gives the evaluation of the feedback equation differential operator for a given state and time for adapative parametrization
     
@@ -217,7 +216,7 @@ def feedbackEvoladaptative_operator(System_obj : System, stateRho : np.ndarray, 
 
 
 @njit
-def custom_rungekutta_integrator_last_point(differential_operator : function, initialStateRho : np.ndarray, timeList : np.ndarray) -> np.ndarray:
+def custom_rungekutta_integrator_last_point(differential_operator, initialStateRho : np.ndarray, timeList : np.ndarray) -> np.ndarray:
     """
     Performs the integration of the time-evolution of the differential_operator
     
@@ -242,7 +241,7 @@ def custom_rungekutta_integrator_last_point(differential_operator : function, in
     return np.array([rho_list])
 
 @njit
-def custom_rungekutta_integrator_full_range(differential_operator : function, initialStateRho : np.ndarray, timeList : np.ndarray) -> np.ndarray:
+def custom_rungekutta_integrator_full_range(differential_operator, initialStateRho : np.ndarray, timeList : np.ndarray) -> np.ndarray:
     """
     Performs the integration of the time-evolution of the differential_operator
     
