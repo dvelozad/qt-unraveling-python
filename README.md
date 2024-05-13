@@ -54,7 +54,7 @@ If the system has dimension 2, we can get a visualition by calling ```qtr.misc.r
 ```python
 qtr.misc.rhoBlochcomp_plot(von_neu_evolution, qtr_test.timeList, label='traj')
 ```
-![image](https://drive.google.com/uc?export=view&id=1zpToQQATgKsXR9loDo3qXwiGJ_y0UN3d)
+![image](examples/images/von_neumann_graph.png)
 With the ```lindbladList``` argument we can include a set of Linblad operators as a jitted function returning an array that contains each Lindblad operator expressed as a numpy array:
 ```python
 ## time-dependent Lindblad ops
@@ -80,7 +80,7 @@ lindblad_evolution = qtr_test.lindbladAnalitical()
 fig, ax = qtr.misc.figure()
 qtr.misc.rhoBlochcomp_plot(lindblad_evol, qtr_test.timeList, label='Analitical', line='-', ax=ax)
 ```
-![image](https://drive.google.com/uc?export=view&id=1da0JhLKxvH27uEu08MpI4-0npUbbwEuQ)
+![image](examples/images/lindblad_graph.png)
 ## Unravelings
 As stated, our python implementation is based on the M and U unravelings parametrization developed by H. Wiseman et al. Details about each parametrization can be found in [[1]](https://arxiv.org/abs/1102.3073). The unraveling parametrization is specified by ```uMatrix``` or ```mMatrix```. Only one type of parametrization is allowed due to the possible conflicts that could arise. If the class receives both matrices simultaneously you should get the following warning:
  ```python
@@ -160,7 +160,7 @@ fig, ax = qtr.misc.figure()
 qtr.misc.rhoBlochcomp_plot(rho_qjump, qtr_test.timeList, label='QJump', line='-', ax=ax)
 qtr.misc.rhoBlochcomp_plot(lindblad_evolution, qtr_test.timeList, label='Analitical', line='-', ax=ax)
 ```
-![image](https://drive.google.com/uc?export=view&id=1UJ4dy_yAGEibG2NZxqBJV31mEu0A8mVF)
+![image](examples/images/qjump_graph.png)
 Finally, this Qjumps implementation is compatible with each unraveling parametrization, but by default this option is deactivated. The optional argument ```coherent_fields``` corresponds to a numpy array where we can specify the amplitude of the coherent fields added to archive the desired -dyne type measuarement. 
  ```python
 ## Average conditional Qjump evoltuion
@@ -189,13 +189,13 @@ fig, ax = qtr.misc.figure()
 qtr.misc.rhoBlochcomp_plot(rho_diff, qtr_test.timeList, label='Diffusive', line='-', ax=ax)
 qtr.misc.rhoBlochcomp_plot(lindblad_evol, qtr_test.timeList, label='Analitical', line='-', ax=ax)
 ```
-![image](https://drive.google.com/uc?export=view&id=1hsw6nMxG9JPwDWw_mxnBxJrHXVwHB3RS)
+![image](examples/images/diffusive_graph.png)
 We also have the possibility of representing the trajectory in the Bloch sphere as follows
  ```python
 ## Bloch sphere
 qtr.misc.rhoBlochSphere([lindblad_evol, rho_diff])
 ```
-![image](https://drive.google.com/uc?export=view&id=17Dm3UcYsYXyZ6wAkpbnGPwZbu6w-jeiG)
+![image](examples/images/bloch_graph.png)
 ### Qjump and diffusive schemes connection
 As mentioned before, from the Qjump scheme you can get to the diffusive scheme using the ```coherent_fields``` argument
  ```python
@@ -208,8 +208,8 @@ rho_qjump = qtr_test.jumpRhoAverage(n_trajectories=1, coherent_fields=coherent_f
 rho_diff = qtr_test.diffusiveRhoAverage(n_trajectories = 1)
 ```
 Both trajectories look that like
-![image](https://drive.google.com/uc?export=view&id=1JbO908CXVmbSTSPZgPW0tirDuIS2iiqR)
-![image](https://drive.google.com/uc?export=view&id=1CBG86cSnS5LvMWfO8G3ihX9XvC1oFtsJ)
+![image](examples/images/qjump_coh.png)
+![image](examples/images/diffusive_coh.png)
 
 You can tweak the amplitudes as you see fit.
 ### Markovian quantum feedback
@@ -250,7 +250,7 @@ ind_traj_rho = qtr_test.feedeRhoTrajectory()
 ## plot trajectory
 qtr.misc.rhoBlochcomp_plot(feedback_traj, timelist, line='-')
 ```
-![image](https://drive.google.com/uc?export=view&id=1HM0v_h6CVriLexpiTg4XIIQI79Y7UR6F)
+![image](examples/images/feedback_single.png)
 
 To obtain an emsemble of N different trajectories you can call
  ```python
@@ -273,4 +273,4 @@ fig, ax = qtr.misc.figure()
 qtr.misc.rhoBlochcomp_plot(feedback_evol, timelist, label='analitical', ax=ax, line='-')
 qtr.misc.rhoBlochcomp_plot(average_feedback_traj, timelist, label='average', ax=ax, line='--')
 ```
-![image](https://drive.google.com/uc?export=view&id=1wyG7ORvQkdxmuePVKBq6MfonZjL-nLfN)
+![image](examples/images/feedback_ave.png)
