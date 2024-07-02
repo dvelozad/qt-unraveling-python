@@ -1,14 +1,14 @@
 README.md
 setup.py
 qt_unraveling/__init__.py
-qt_unraveling/compile_usual_operators.py
+qt_unraveling/current_measurement.py
 qt_unraveling/diffusive_trajectory.py
 qt_unraveling/feedback_trajectory.py
 qt_unraveling/integrators.py
 qt_unraveling/jumpy_trajectory.py
 qt_unraveling/misc_func.py
 qt_unraveling/qt_unraveling.py
-qt_unraveling/usual_operators_.py
+qt_unraveling/usual_operators.py
 qt_unraveling.egg-info/PKG-INFO
 qt_unraveling.egg-info/SOURCES.txt
 qt_unraveling.egg-info/dependency_links.txt

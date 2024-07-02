@@ -8,13 +8,17 @@ Year: 2022
 '''
 import numpy as np
 from numba import njit, objmode, float64, complex128, int64, types
+import qt_unraveling.usual_operators as op
 
-import qt_unraveling.usual_operators_ as op
+from numba.pycc import CC
+
+cc = CC('diffusive_trajectory')
+cc.verbose = True
 
 ##########################################################################################
 ## Euler integrator 
 ##########################################################################################
-@njit
+@njit(complex128[:,:](complex128[:,:], complex128[:,:], complex128[:,:,:], complex128[:,:,:], float64[:], float64))
 def diffusiveRhoEulerStep_(stateRho, drivingH, original_L_it, L_it, zeta, dt):
     ## Lindblad super op
     D_c = op.D_vec(original_L_it, stateRho)*dt
@@ -29,20 +33,20 @@ def diffusiveRhoEulerStep_(stateRho, drivingH, original_L_it, L_it, zeta, dt):
 ##########################################################################################
 ## Milstein integrator 
 ##########################################################################################   
-@njit
+@njit(complex128[:,:](complex128[:,:], complex128[:,:,:], complex128[:,:]))
 def diffusiveRhoMilstein_f(drivingH, original_L_it, stateRho):
     commu1 = -1j*op.Com(drivingH, stateRho)                     
     Dc = op.D_vec(original_L_it, stateRho)
     return commu1 + Dc 
 
-@njit
+@njit(complex128[:,:,:](complex128[:,:,:], complex128[:,:]))
 def diffusiveRhoMilstein_g(L_it, stateRho):
     HW = np.zeros((np.shape(L_it)[0],)+np.shape(stateRho), dtype = np.complex128)
     for n_L, L_i in enumerate(L_it):
         HW[n_L] += op.H(L_i, stateRho)
     return HW
 
-@njit
+@njit(complex128[:,:](complex128[:,:], complex128[:,:], complex128[:,:,:],  complex128[:,:,:], float64[:], float64))
 def diffusiveRhoMilsteinStep(stateRho, drivingH, original_L_it, L_it, zeta, dt):
 
     gi = diffusiveRhoMilstein_g(L_it, stateRho)
@@ -68,7 +72,9 @@ def diffusiveRhoMilsteinStep(stateRho, drivingH, original_L_it, L_it, zeta, dt):
 ############################################
 ######  diffusive trajectory functions #####
 ############################################
-@njit
+#@njit(complex128[:,:,:](complex128[:,:], float64[:], complex128[:,:], complex128[:,:,:], complex128[:,:,:], types.unicode_type, int64))
+#@cc.export('diffusiveRhoTrajectory_td', complex128[:,:,:](complex128[:,:], float64[:], types.FunctionType, types.FunctionType, types.FunctionType, types.unicode_type, int64))
+#@njit
 def diffusiveRhoTrajectory_td(initialStateRho, timelist, drivingH, original_lindbladList, lindbladList, method='euler', seed=0):
     ## Timelist details
     timeSteps = np.shape(timelist)[0]
@@ -78,10 +84,9 @@ def diffusiveRhoTrajectory_td(initialStateRho, timelist, drivingH, original_lind
     number_lindblad_op = np.shape(lindbladList(timelist[0],initialStateRho))[0]
 
     ## Stocastics increments
-    zeta = 0
-    with objmode(zeta='float64[:,:]'):
-        rng = np.random.default_rng(seed)
-        zeta = rng.normal(loc=0, scale=1, size=(number_lindblad_op, timeSteps))
+    #rng = np.random.default_rng(seed)
+    np.random.seed(seed) 
+    zeta = np.random.normal(loc=0, scale=1, size=(number_lindblad_op, timeSteps))
 
     rho_trajectory = np.ascontiguousarray(np.empty(np.shape(timelist) + np.shape(initialStateRho), dtype=np.complex128))
     rho_trajectory[0,:,:] = np.ascontiguousarray(initialStateRho)
@@ -103,7 +108,9 @@ def diffusiveRhoTrajectory_td(initialStateRho, timelist, drivingH, original_lind
 
     return rho_trajectory
 
-@njit(complex128[:,:,:](complex128[:,:], float64[:], complex128[:,:], complex128[:,:,:], complex128[:,:,:], types.unicode_type, int64))
+#@njit(complex128[:,:,:](complex128[:,:], float64[:], complex128[:,:], complex128[:,:,:], complex128[:,:,:], types.unicode_type, int64))
+#@cc.export('diffusiveRhoTrajectory_', complex128[:,:,:](complex128[:,:], float64[:], complex128[:,:], complex128[:,:,:], complex128[:,:,:], types.unicode_type, int64))
+#@njit
 def diffusiveRhoTrajectory_(initialStateRho, timelist, drivingH, original_lindbladList, lindbladList, method='euler', seed=0):
     ## Timelist details
     timeSteps = np.shape(timelist)[0]
@@ -113,10 +120,9 @@ def diffusiveRhoTrajectory_(initialStateRho, timelist, drivingH, original_lindbl
     number_lindblad_op = np.shape(lindbladList)[0]
 
     ## Stocastics increments
-    zeta = 0
-    with objmode(zeta='float64[:,:]'):
-        rng = np.random.default_rng(seed)
-        zeta = rng.normal(loc=0, scale=1, size=(number_lindblad_op, timeSteps))
+    #rng = np.random.default_rng(seed)
+    np.random.seed(seed) 
+    zeta = np.random.normal(loc=0, scale=1, size=(number_lindblad_op, timeSteps))
 
     rho_trajectory = np.ascontiguousarray(np.empty(np.shape(timelist) + np.shape(initialStateRho), dtype=np.complex128))
     rho_trajectory[0,:,:] = np.ascontiguousarray(initialStateRho)
@@ -133,4 +139,10 @@ def diffusiveRhoTrajectory_(initialStateRho, timelist, drivingH, original_lindbl
     return rho_trajectory
 
 
+if __name__ == "__main__":
+    cc.compile()
+
+# @cc.export('diffusiveRhoEulerStep_', complex128[:,:](complex128[:,:], complex128[:,:], complex128[:,:,:], complex128[:,:,:], float64[:], float64)) 
+# @cc.export('diffusiveRhoMilstein_f', complex128[:,:](complex128[:,:], complex128[:,:,:], complex128[:,:]))
+# @cc.export('diffusiveRhoMilsteinStep', complex128[:,:](complex128[:,:], complex128[:,:], complex128[:,:,:],  complex128[:,:,:], float64[:], float64))
 

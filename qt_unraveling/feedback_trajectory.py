@@ -7,16 +7,16 @@ Year: 2022
 ***************************************
 '''
 import numpy as np
-from numba import njit, objmode
+from numba import njit, objmode, float64, complex128, int64, types
 
-import qt_unraveling.usual_operators_ as op
+import qt_unraveling.usual_operators as op
 from qt_unraveling.current_measurement import get_currens_measurement
 from qt_unraveling.diffusive_trajectory import diffusiveRhoEulerStep_
 
 ##########################################################################################
 ## Euler integrator 
 ##########################################################################################
-@njit
+#@njit(complex128[:, :](complex128[:, :], complex128[:, :], complex128[:, :, :], complex128[:, :, :], float64[:], float64))
 def feedbackRhoEulerStep_(stateRho, drivingH, L_it, F_it, zeta, dt):
     stateRho = np.ascontiguousarray(stateRho)
     ## Lindblad super op
@@ -38,7 +38,7 @@ def feedbackRhoEulerStep_(stateRho, drivingH, L_it, F_it, zeta, dt):
 ###########################################
 ######  feedback trajectory functions #####
 ###########################################
-@njit
+#@njit(complex128[:, :, :](complex128[:, :], float64[:], types.FunctionType, types.FunctionType, types.FunctionType, int64))
 def feedbackRhoTrajectory_(initialStateRho, timelist, drivingH, lindbladList, Flist, seed=0):
     ## Timelist details
     timeSteps = np.shape(timelist)[0]
@@ -63,7 +63,7 @@ def feedbackRhoTrajectory_(initialStateRho, timelist, drivingH, lindbladList, Fl
     return rho_trajectory
 
 ## Implementing equation 
-@njit
+#@njit(complex128[:, :, :](complex128[:, :], float64[:], types.FunctionType, complex128[:, :, :], types.FunctionType, float64, int64))
 def feedbackRhoTrajectory_delay(initialStateRho, timelist, drivingH, original_lindbladList, lindbladList, Flist, tau, seed=0):
     ## Timelist details
     timeSteps = np.shape(timelist)[0]

@@ -7,7 +7,7 @@ Year: 2022
 ***************************************
 '''
 import numpy as np
-from numba import njit, jit, complex128, float64
+from numba import njit, complex128, float64
 
 ## Pauli matrices
 sigmax = np.array([[0,1],[1,0]], dtype = np.complex128)

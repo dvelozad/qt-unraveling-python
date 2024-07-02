@@ -1,16 +1,25 @@
-'''
+"""
 ***************************************
 Project: Quantum trajectory integrator
 Author: Diego Veloza Diaz
 Email: dvelozad@unal.edu.co
 Year: 2022
 ***************************************
-'''
+"""
 import numpy as np
 import matplotlib.pyplot as plt
-from multiprocessing import Pool, cpu_count
+from multiprocess import Pool, cpu_count
 from numba import njit
 from tqdm import tqdm
+
+## Pauli matrices
+sigmax = np.array([[0,1],[1,0]], dtype = np.complex128)
+sigmay = np.array([[0,-1j],[1j,0]], dtype = np.complex128)
+sigmaz = np.array([[1,0],[0,-1]], dtype = np.complex128)
+
+## Ladder operators
+sigmap = 0.5*(sigmax + 1j*sigmay)
+sigmam = 0.5*(sigmax - 1j*sigmay)
 
 def parallel_run(fun, arg_list, tqdm_bar=False):
     if tqdm_bar:
@@ -20,14 +29,11 @@ def parallel_run(fun, arg_list, tqdm_bar=False):
                 for _ in p.imap(fun, arg_list):
                     m.append(_)
                     pbar.update()
-            p.terminate()
-            p.join() 
     else:
-        p = Pool(processes = cpu_count())
-        m = p.map(fun, arg_list)
-        p.terminate()
-        p.join() 
+        with Pool(processes=cpu_count()) as p:
+            m = p.map(fun, arg_list)
     return m
+
 
 def figure():
     plt.rcParams.update({'font.size': 15})

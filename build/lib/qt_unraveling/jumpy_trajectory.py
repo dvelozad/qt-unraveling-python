@@ -9,13 +9,13 @@ Year: 2022
 import numpy as np
 from numba import njit, objmode, float64, complex128, int64
 
-import qt_unraveling.usual_operators_ as op
+import qt_unraveling.usual_operators as op
 import qt_unraveling.misc_func as misc
 
-@njit
+#@njit(int64(complex128[:,:], complex128[:,:,:], float64, int64))
 def dNRho(stateRho, measurement_op_list, dt, seed=0):
     weight = np.zeros(np.shape(measurement_op_list)[0], dtype=np.float64)
-    M_index = np.zeros(np.shape(measurement_op_list)[0], dtype=np.int32)
+    M_index = np.zeros(np.shape(measurement_op_list)[0], dtype=np.int64)
 
     for mu, Mmu in enumerate(measurement_op_list):
         Mmu = np.ascontiguousarray(Mmu)
@@ -31,7 +31,7 @@ def dNRho(stateRho, measurement_op_list, dt, seed=0):
         jump_index = np.shape(measurement_op_list)[0]
     return jump_index
 
-@njit
+#@njit(complex128[:,:,:](complex128[:,:], float64[:], complex128[:,:], complex128[:,:,:], complex128[:], complex128[:,:,:], complex128[:], int64))
 def ortogonal_mixing(oMatrix, coherent_fields, L_it):
     new_ops = np.zeros(np.shape(L_it), dtype=np.complex128)
     for n_O, O in enumerate(oMatrix):
@@ -40,14 +40,14 @@ def ortogonal_mixing(oMatrix, coherent_fields, L_it):
             new_ops[n_O] += O[n_L]*L
     return new_ops
 
-@njit
+#@njit(complex128[:,:,:](complex128[:,:], float64[:], complex128[:,:], complex128[:,:,:], complex128[:], complex128[:,:,:], complex128[:], int64))
 def coherent_field_mixing(coherent_fields, L_it):
     new_ops = np.zeros(np.shape(L_it), dtype=np.complex128)
     for n_L, L in enumerate(L_it):
         new_ops[n_L] += L + coherent_fields[n_L]*np.eye(np.shape(L)[0])
     return new_ops
 
-@njit
+#@njit(complex128[:,:,:](complex128[:,:], float64[:], complex128[:,:], complex128[:,:,:], complex128[:], complex128[:,:,:], complex128[:], int64))
 def jumpRhoTrajectory_td(initialStateRho, timelist, drivingH, original_lindbladList, eta_diag, lindbladList, coherent_fields, seed):
     ## Timelist details
     timeSteps = np.shape(timelist)[0]
@@ -92,7 +92,8 @@ def jumpRhoTrajectory_td(initialStateRho, timelist, drivingH, original_lindbladL
 
     return rho_trajectory
 
-@njit(complex128[:,:,:](complex128[:,:], float64[:], complex128[:,:], complex128[:,:,:], complex128[:], complex128[:,:,:], complex128[:], int64))
+##@njit(complex128[:,:,:](complex128[:,:], float64[:], complex128[:,:], complex128[:,:,:], complex128[:], complex128[:,:,:], complex128[:], int64))
+#@njit(complex128[:,:,:](complex128[:,:], float64[:], complex128[:,:], complex128[:,:,:], complex128[:], complex128[:,:,:], complex128[:], int64))
 def jumpRhoTrajectory_(initialStateRho, timelist, drivingH, original_lindbladList, eta_diag, lindbladList, coherent_fields, seed):
     ## Timelist details
     timeSteps = np.shape(timelist)[0]
