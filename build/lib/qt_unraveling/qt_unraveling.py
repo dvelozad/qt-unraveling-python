@@ -36,10 +36,12 @@ class QuantumSystem:
         self.setup_time_interval(timeList)
         self.setup_initial_state(initialState)
         self.setup_hamiltonian(drivingH)
-        self.setup_unraveling_matrices(lindbladList, FList, uMatrix, mMatrix, oMatrix, HMatrix, TMatrix, WMatrix, PhiMatrix)
-        self.setup_diffusive_methods()
-        self.setup_jumpy_methods()
-        self.setup_feedback_methods()
+        
+        if lindbladList is not None:
+            self.setup_unraveling_matrices(lindbladList, FList, uMatrix, mMatrix, oMatrix, HMatrix, TMatrix, WMatrix, PhiMatrix)
+            self.setup_diffusive_methods()
+            self.setup_jumpy_methods()
+            self.setup_feedback_methods()
 
     def setup_time_interval(self, timeList):
         self.timeList = timeList

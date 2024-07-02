@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="qt_unraveling",
-    version="0.2.8.1",
+    version="0.2.8.2",
     author="Diego Veloza Diaz",
     author_email="dvelozad@unal.edu.co",
     description="Library focused on simulate quantum trajectories with different unravelings",
