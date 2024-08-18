@@ -18,22 +18,27 @@ sigmaz = np.array([[1,0],[0,-1]], dtype = np.complex128)
 sigmap = 0.5*(sigmax + 1j*sigmay)
 sigmam = 0.5*(sigmax - 1j*sigmay)
 
+
+## Commutator
 @njit(complex128[:,:](complex128[:,:], complex128[:,:]))
 def Com(a,b):
     a, b = np.ascontiguousarray(a), np.ascontiguousarray(b)
     return np.dot(a,b) - np.dot(b,a)
 
+## Anticommutator
 @njit(complex128[:,:](complex128[:,:], complex128[:,:]))
 def AntiCom(a,b):
     a, b = np.ascontiguousarray(a), np.ascontiguousarray(b)
     return np.dot(a,b) + np.dot(b,a)
 
+## Dissipator superoperator in the Lindblad equation
 @njit(complex128[:,:](complex128[:,:], complex128[:,:]))
 def D(A, B):
     A, B = np.ascontiguousarray(A), np.ascontiguousarray(B)
     AT = np.transpose(np.conjugate(A))
     return np.dot(A, np.dot(B,AT)) - 0.5*AntiCom(np.dot(AT,A),B)
 
+## Dissipator superoperator for multiple Lindblad operators
 @njit(complex128[:,:](complex128[:,:,:], complex128[:,:]))
 def D_vec(A, B):
     A, B = np.ascontiguousarray(A), np.ascontiguousarray(B)
@@ -52,17 +57,20 @@ def H_vec(A, B):
         H[n_A] += Aux - np.trace(Aux)*B
     return H
 
+## Caligraphic H superoperator for the diffusive unraveling
 @njit(complex128[:,:](complex128[:,:], complex128[:,:]))
 def H(A, B):
     A, B = np.ascontiguousarray(A), np.ascontiguousarray(B)
     Aux = np.dot(A,B) + np.dot(B,np.transpose(np.conjugate(A)))
     return Aux - np.trace(Aux)*B
 
+## G superoperator, from representing the SME as in Wiseman's book
 @njit(complex128[:,:](complex128[:,:], complex128[:,:]))
 def G(A, B):
     A, B = np.ascontiguousarray(A), np.ascontiguousarray(B)
     Aux = np.dot(np.dot(A,B), np.transpose(np.conjugate(A)))
     return (1/np.trace(Aux))*Aux - B
+
 
 @njit(complex128[:,:](complex128[:], complex128[:,:,:]))
 def tensordot_loop(number_list, matrix_list):
