@@ -310,23 +310,20 @@ class DiffusiveMethods:
             self.diffusiveRhoEnsemble_compilation_status = True
             self.diffusiveRhoAverage_compilation_status = True
 
-    def diffusive_rho_trajectory_td(self, method='euler', return_noise=False, seed=0,):
+    def diffusive_rho_trajectory_td(self, method='euler', seed=0):
         if not self.diffusiveRhoTrajectory_compilation_status:
             print('Compiling diffusiveRhoTrajectory ...')
         self.diffusiveRhoTrajectory_compilation_status = True
-        return partial(diffusiveRhoTrajectory_td, self.system.initialStateRho, self.system.timeList, self.system.H,
-                       self.system.original_cList, self.system.cList)(method, return_noise, seed,)
+        return partial(diffusiveRhoTrajectory_td, self.system.initialStateRho, self.system.timeList, self.system.H, self.system.original_cList, self.system.cList)(method, seed)
 
-    def diffusive_rho_trajectory_tind(self, method='euler', return_noise=False, seed=0):
-        return partial(diffusiveRhoTrajectory_, self.system.initialStateRho, self.system.timeList, self.system.drivingH,
-                       self.system.original_lindbladList, self.system.lindbladList)(method, return_noise, seed)
+    def diffusive_rho_trajectory_tind(self, method='euler', seed=0):
+        return partial(diffusiveRhoTrajectory_, self.system.initialStateRho, self.system.timeList, self.system.drivingH, self.system.original_lindbladList, self.system.lindbladList)(method, seed)
 
-
-    def diffusive_rho_trajectory(self, method='euler', return_noise=False, seed=0):
+    def diffusive_rho_trajectory(self, method='euler', seed=0):
         if (self.system.timedepent_lindbladoperators) or (self.system.timedepent_hamiltonian) or (self.system.nonfixedUnraveling):
-            return self.diffusive_rho_trajectory_td(method, return_noise, seed)
+            return self.diffusive_rho_trajectory_td(method, seed)
         else:
-            return self.diffusive_rho_trajectory_tind(method, return_noise, seed)
+            return self.diffusive_rho_trajectory_tind(method, seed)
 
     def diffusive_rho_ensemble(self, n_trajectories, method='euler'):
         if ((self.system.timedepent_lindbladoperators) or (self.system.timedepent_hamiltonian) or (self.system.nonfixedUnraveling)) and (not self.diffusiveRhoEnsemble_compilation_status):
