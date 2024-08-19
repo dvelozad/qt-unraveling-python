@@ -314,7 +314,7 @@ class DiffusiveMethods:
         if not self.diffusiveRhoTrajectory_compilation_status:
             print('Compiling diffusiveRhoTrajectory ...')
         self.diffusiveRhoTrajectory_compilation_status = True
-        return partial(diffusiveRhoTrajectory_td, self.system.initialStateRho, self.system.timeList, self.system.H, self.system.original_cList, self.system.cList)(method, seed)
+        return partial(diffusiveRhoTrajectory_td, self.system.initialStateRho, self.system.timeList, self.system.H, self.system.original_cList, self.system.cList)(method, seed, return_noise=False)
 
     def diffusive_rho_trajectory_tind(self, method='euler', seed=0):
         return partial(diffusiveRhoTrajectory_, self.system.initialStateRho, self.system.timeList, self.system.drivingH, self.system.original_lindbladList, self.system.lindbladList)(method, seed)

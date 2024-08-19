@@ -1,5 +1,5 @@
 Metadata-Version: 2.1
-Name: qt-unraveling
+Name: qt_unraveling
 Version: 0.2.8.2
 Summary: Library focused on simulate quantum trajectories with different unravelings
 Home-page: https://github.com/dvelozad/qt-unraveling-python
@@ -18,6 +18,11 @@ Classifier: Programming Language :: Python :: 3.6
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: numba
+Requires-Dist: scipy
+Requires-Dist: matplotlib
+Requires-Dist: multiprocess
 
 # Overview
 The purpose of this project is to build a library to implement and analyse Quantum Trajectories, an approach to open Markovian systems with an emphasis on the use of different unravelings. 

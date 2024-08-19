@@ -75,7 +75,8 @@ def diffusiveRhoMilsteinStep(stateRho, drivingH, original_L_it, L_it, zeta, dt):
 #@njit(complex128[:,:,:](complex128[:,:], float64[:], complex128[:,:], complex128[:,:,:], complex128[:,:,:], types.unicode_type, int64))
 #@cc.export('diffusiveRhoTrajectory_td', complex128[:,:,:](complex128[:,:], float64[:], types.FunctionType, types.FunctionType, types.FunctionType, types.unicode_type, int64))
 #@njit
-def diffusiveRhoTrajectory_td(initialStateRho, timelist, drivingH, original_lindbladList, lindbladList, method='euler', seed=0):
+def diffusiveRhoTrajectory_td(initialStateRho, timelist, drivingH, original_lindbladList, lindbladList, method='euler',
+                              return_noise=False, seed=0):
     ## Timelist details
     timeSteps = np.shape(timelist)[0]
     dt = timelist[1] - timelist[0]
@@ -105,13 +106,15 @@ def diffusiveRhoTrajectory_td(initialStateRho, timelist, drivingH, original_lind
             L_it = lindbladList(it, rho_trajectory[n_it])
             original_L_it = original_lindbladList(it)
             rho_trajectory[n_it+1,:,:] = rho_trajectory[n_it] + diffusiveRhoMilsteinStep(rho_trajectory[n_it], drivingH(it), original_L_it, L_it, zeta[:, n_it], dt)
-
+    if return_noise:
+        return rho_trajectory, zeta * np.sqrt(dt)
     return rho_trajectory
 
 #@njit(complex128[:,:,:](complex128[:,:], float64[:], complex128[:,:], complex128[:,:,:], complex128[:,:,:], types.unicode_type, int64))
 #@cc.export('diffusiveRhoTrajectory_', complex128[:,:,:](complex128[:,:], float64[:], complex128[:,:], complex128[:,:,:], complex128[:,:,:], types.unicode_type, int64))
 #@njit
-def diffusiveRhoTrajectory_(initialStateRho, timelist, drivingH, original_lindbladList, lindbladList, method='euler', seed=0):
+def diffusiveRhoTrajectory_(initialStateRho, timelist, drivingH, original_lindbladList, lindbladList, method='euler',
+                            return_noise=False, seed=0):
     ## Timelist details
     timeSteps = np.shape(timelist)[0]
     dt = timelist[1] - timelist[0]
@@ -136,6 +139,8 @@ def diffusiveRhoTrajectory_(initialStateRho, timelist, drivingH, original_lindbl
         for n_it, it in enumerate(timelist[:-1]):       
             rho_trajectory[n_it+1,:,:] = rho_trajectory[n_it] + diffusiveRhoMilsteinStep(rho_trajectory[n_it], drivingH, original_lindbladList, lindbladList, zeta[:, n_it], dt)
 
+    if return_noise:
+        return rho_trajectory, zeta * np.sqrt(dt)
     return rho_trajectory
 
 
