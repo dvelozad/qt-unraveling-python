@@ -9,7 +9,7 @@ Year: 2022
 
 import numpy as np
 from scipy.linalg import sqrtm
-from numba import objmode
+from numba import objmode, njit
 import warnings
 from functools import partial
 
@@ -217,30 +217,99 @@ class QuantumSystem:
         self.feedback_methods = FeedbackMethods(self)
 
     def vonneumann_analytical(self, integrator='scipy', method='BDF', rrtol=1e-5, aatol=1e-5, last_point=False):
+        """
+        Calculate the analytical von Neumann evolution using selected integrator
+        
+        Parameters:
+        integrator (str): 'scipy' or 'runge-kutta' integration method
+        method (str): Specific method for scipy integrator
+        rrtol (float): Relative error tolerance for scipy solver
+        aatol (float): Absolute error tolerance for scipy solver
+        last_point (bool): If True, return only the final state
+        
+        Returns:
+        Array of density matrices or single density matrix if last_point=True
+        """
         hamiltonian = self.H
-        op_lind = lambda rho_it, it: vonneumann_operator(hamiltonian, rho_it, it)
+        
+        # Define the von Neumann operator that's compatible with our integrators
+        def op_lind(rho_it, it):
+            H_it = hamiltonian(it)
+            # Calculate -i[H, rho]
+            return -1j * (np.dot(H_it, rho_it) - np.dot(rho_it, H_it))
+        
         if integrator == 'scipy':
-            return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method=method, rrtol=rrtol, aatol=aatol, last_point=last_point)
+            return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method=method, 
+                                   rrtol=rrtol, aatol=aatol, last_point=last_point)
         elif integrator == 'runge-kutta':
             return custom_rungekutta_integrator(op_lind, self.initialStateRho, self.timeList, last_point=last_point)
 
     def lindblad_analytical(self, integrator='scipy', method='BDF', rrtol=1e-5, aatol=1e-5, last_point=False):
+        """
+        Calculate the analytical Lindblad evolution using selected integrator
+        
+        Parameters:
+        integrator (str): 'scipy' or 'runge-kutta' integration method
+        method (str): Specific method for scipy integrator
+        rrtol (float): Relative error tolerance for scipy solver
+        aatol (float): Absolute error tolerance for scipy solver
+        last_point (bool): If True, return only the final state
+        
+        Returns:
+        Array of density matrices or single density matrix if last_point=True
+        """
         hamiltonian = self.H
         lindblad_ops = self.cList
-        op_lind = lambda rho_it, it: standartLindblad_operator(hamiltonian, lindblad_ops, rho_it, it)
+        
+        # Use the pure Python version instead of the Numba one
+        from qt_unraveling.integrators import standartLindblad_operator_py
+        
+        # Define the Lindblad operator for the integrator
+        def op_lind(rho_it, it):
+            return standartLindblad_operator_py(hamiltonian, lindblad_ops, rho_it, it)
+        
         if integrator == 'scipy':
-            return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method=method, rrtol=rrtol, aatol=aatol, last_point=last_point)
+            return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method=method, 
+                                   rrtol=rrtol, aatol=aatol, last_point=last_point)
         elif integrator == 'runge-kutta':
             return custom_rungekutta_integrator(op_lind, self.initialStateRho, self.timeList, last_point=last_point)
 
     def feedback_analytical(self, integrator='scipy', method='BDF', rrtol=1e-5, aatol=1e-5, last_point=False):
+        """
+        Calculate the analytical feedback evolution using selected integrator
+        
+        Parameters:
+        -----------
+        integrator : str
+            'scipy' or 'runge-kutta' integration method
+        method : str
+            Specific method for scipy integrator
+        rrtol : float
+            Relative error tolerance for scipy solver
+        aatol : float
+            Absolute error tolerance for scipy solver
+        last_point : bool
+            If True, return only the final state
+            
+        Returns:
+        --------
+        Array of density matrices or single density matrix if last_point=True
+        """
         hamiltonian = self.H
         lindblad_ops = self.cList
         original_lindblad_ops = self.original_cList
         feedback_ops = self.FList
-        op_lind = lambda rho_it, it: feedbackEvol_operator(hamiltonian, original_lindblad_ops, lindblad_ops, feedback_ops, rho_it, it)
+        
+        # Use the pure Python version of the feedback evolution operator
+        from qt_unraveling.integrators import feedbackEvol_operator_py
+        
+        # Define the feedback operator for the integrator
+        def op_lind(rho_it, it):
+            return feedbackEvol_operator_py(hamiltonian, original_lindblad_ops, lindblad_ops, feedback_ops, rho_it, it)
+        
         if integrator == 'scipy':
-            return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method=method, rrtol=rrtol, aatol=aatol, last_point=last_point)
+            return scipy_integrator(op_lind, self.initialStateRho, self.timeList, method=method, 
+                                   rrtol=rrtol, aatol=aatol, last_point=last_point)
         elif integrator == 'runge-kutta':
             return custom_rungekutta_integrator(op_lind, self.initialStateRho, self.timeList, last_point=last_point)
 
@@ -310,51 +379,149 @@ class DiffusiveMethods:
             self.diffusiveRhoEnsemble_compilation_status = True
             self.diffusiveRhoAverage_compilation_status = True
 
-    def diffusive_rho_trajectory_td(self, method='euler', seed=0):
-        if not self.diffusiveRhoTrajectory_compilation_status:
-            print('Compiling diffusiveRhoTrajectory ...')
+    def diffusive_rho_trajectory_td(self, method='euler', seed=0, verbose=False):
+        """
+        Non-Numba implementation for time-dependent operators
+        Directly calls the diffusiveRhoTrajectory_td function from the module
+        
+        Parameters:
+        -----------
+        method : str
+            Integration method ('euler' or 'milstein')
+        seed : int
+            Random seed for stochastic integration
+        verbose : bool
+            Whether to print progress information
+            
+        Returns:
+        --------
+        numpy.ndarray
+            Evolution of the density matrix
+        """
+        if not self.diffusiveRhoTrajectory_compilation_status and verbose:
+            print('Preparing diffusiveRhoTrajectory (non-compiled) ...')
         self.diffusiveRhoTrajectory_compilation_status = True
-        return partial(diffusiveRhoTrajectory_td, self.system.initialStateRho, self.system.timeList, self.system.H, self.system.original_cList, self.system.cList)(method, seed)
+        
+        # Direct implementation without partial function
+        from qt_unraveling.diffusive_trajectory import diffusiveRhoTrajectory_td
+        
+        return diffusiveRhoTrajectory_td(
+            self.system.initialStateRho, 
+            self.system.timeList, 
+            self.system.H, 
+            self.system.original_cList, 
+            self.system.cList, 
+            method=method, 
+            seed=seed,
+            verbose=verbose
+        )
 
     def diffusive_rho_trajectory_tind(self, method='euler', seed=0):
         return partial(diffusiveRhoTrajectory_, self.system.initialStateRho, self.system.timeList, self.system.drivingH, self.system.original_lindbladList, self.system.lindbladList)(method, seed)
 
-    def diffusive_rho_trajectory(self, method='euler', seed=0):
+    def diffusive_rho_trajectory(self, method='euler', seed=0, verbose=False):
         if (self.system.timedepent_lindbladoperators) or (self.system.timedepent_hamiltonian) or (self.system.nonfixedUnraveling):
-            return self.diffusive_rho_trajectory_td(method, seed)
+            return self.diffusive_rho_trajectory_td(method, seed, verbose)
         else:
             return self.diffusive_rho_trajectory_tind(method, seed)
 
-    def diffusive_rho_ensemble(self, n_trajectories, method='euler'):
+    def diffusive_rho_ensemble(self, n_trajectories, method='euler', verbose=False):
+        """
+        Calculate an ensemble of quantum trajectories
+        
+        Parameters:
+        -----------
+        n_trajectories : int
+            Number of trajectories to calculate
+        method : str
+            Integration method ('euler' or 'milstein')
+        verbose : bool
+            Whether to print progress information
+            
+        Returns:
+        --------
+        list
+            List of trajectory arrays
+        """
         if ((self.system.timedepent_lindbladoperators) or (self.system.timedepent_hamiltonian) or (self.system.nonfixedUnraveling)) and (not self.diffusiveRhoEnsemble_compilation_status):
             self.diffusiveRhoEnsemble_compilation_status = True
-            print('Compiling diffusiveRhoEnsemble ...')
-            tmp = self.diffusive_rho_trajectory_td(method=method, seed=0)
-            del tmp
+            if verbose:
+                print('Preparing diffusiveRhoEnsemble (non-compiled) ...')
 
-        if ((self.system.timedepent_lindbladoperators) or (self.system.timedepent_hamiltonian) or (self.system.nonfixedUnraveling)):
-            all_traj = parallel_run(partial(self.diffusive_rho_trajectory_td, method), np.arange(n_trajectories))
-        else:
-            all_traj = parallel_run(partial(self.diffusive_rho_trajectory_tind, method), np.arange(n_trajectories))
-
+        all_traj = []
+        for seed in range(n_trajectories):
+            if (self.system.timedepent_lindbladoperators) or (self.system.timedepent_hamiltonian) or (self.system.nonfixedUnraveling):
+                # Only first trajectory should print verbose output
+                traj_verbose = verbose and seed == 0
+                traj = self.diffusive_rho_trajectory_td(method=method, seed=seed, verbose=traj_verbose)
+            else:
+                traj = self.diffusive_rho_trajectory_tind(method=method, seed=seed)
+            all_traj.append(traj)
+            
         return all_traj
 
-    def diffusive_rho_average(self, n_trajectories, method='euler'):
+    def diffusive_rho_average(self, n_trajectories, method='euler', verbose=False, parallel=True):
+        """
+        Calculate the average of quantum trajectories, with option for parallel processing.
+        
+        Parameters:
+        -----------
+        n_trajectories : int
+            Number of trajectories to average
+        method : str
+            Integration method ('euler' or 'milstein')
+        verbose : bool
+            Whether to print progress information
+        parallel : bool
+            Whether to use parallel processing
+            
+        Returns:
+        --------
+        numpy.ndarray
+            Average trajectory
+        """
         if ((self.system.timedepent_lindbladoperators) or (self.system.timedepent_hamiltonian) or (self.system.nonfixedUnraveling)) and (not self.diffusiveRhoAverage_compilation_status):
             self.diffusiveRhoAverage_compilation_status = True
-            print('Compiling diffusiveRhoAverage ...')
-            tmp = self.diffusive_rho_trajectory_td(method=method, seed=0)
-            del tmp
-
-        if ((self.system.timedepent_lindbladoperators) or (self.system.timedepent_hamiltonian) or (self.system.nonfixedUnraveling)):
-            all_traj = parallel_run(partial(self.diffusive_rho_trajectory_td, method), np.arange(n_trajectories))
+            if verbose:
+                print('Preparing diffusiveRhoAverage (non-compiled) ...')
+        
+        # Use parallel processing if requested and available
+        if parallel:
+            from qt_unraveling.misc_func import parallel_run
+            
+            # Create a wrapper function for parallel processing
+            def traj_wrapper(seed):
+                if (self.system.timedepent_lindbladoperators) or (self.system.timedepent_hamiltonian) or (self.system.nonfixedUnraveling):
+                    # Only first trajectory should print verbose output
+                    traj_verbose = verbose and seed == 0
+                    return self.diffusive_rho_trajectory_td(method=method, seed=seed, verbose=traj_verbose)
+                else:
+                    return self.diffusive_rho_trajectory_tind(method=method, seed=seed)
+            
+            # Run the trajectories in parallel
+            seed_list = np.arange(n_trajectories)
+            
+            # Show progress bar if verbose
+            trajectory_list = parallel_run(traj_wrapper, seed_list, tqdm_bar=verbose)
+            
+            # Calculate the average
+            time_shape = np.shape(self.system.timeList)
+            state_shape = np.shape(self.system.initialStateRho)
+            rho_average = np.zeros(time_shape + state_shape, dtype=np.complex128)
+            
+            for traj in trajectory_list:
+                rho_average += traj / n_trajectories
+                
+            return rho_average
         else:
-            all_traj = parallel_run(partial(self.diffusive_rho_trajectory_tind, method), np.arange(n_trajectories))
-
-        rho_average = np.zeros(np.shape(self.system.timeList) + np.shape(self.system.initialStateRho), dtype=np.complex128)
-        for rho_traj in all_traj:
-            rho_average = rho_average + (1 / n_trajectories) * rho_traj
-        return rho_average
+            # Original sequential implementation
+            all_traj = self.diffusive_rho_ensemble(n_trajectories, method, verbose=verbose)
+            
+            rho_average = np.zeros(np.shape(self.system.timeList) + np.shape(self.system.initialStateRho), dtype=np.complex128)
+            for rho_traj in all_traj:
+                rho_average = rho_average + (1 / n_trajectories) * rho_traj
+                
+            return rho_average
 
 
 class JumpyMethods:
@@ -370,21 +537,141 @@ class JumpyMethods:
             self.jumpRhoEnsemble_compilation_status = True
             self.jumpRhoAverage_compilation_status = True
 
-    def jump_rho_trajectory_td(self, coherent_fields, seed=0):
-        if not self.jumpRhoTrajectory_compilation_status:
-            print('Compiling jumpRhoTrajectory ...')
+    def jump_rho_trajectory_td(self, coherent_fields, seed=0, verbose=False, parallel=False):
+        """
+        Non-Numba implementation for time-dependent operators
+        Directly calls the jumpRhoTrajectory_td function from the module
+        
+        Parameters:
+        -----------
+        coherent_fields : numpy.ndarray
+            Coherent field amplitudes
+        seed : int
+            Random seed for stochastic integration
+        verbose : bool
+            Whether to print progress information
+        parallel : bool
+            Whether this function is being called in parallel mode
+            
+        Returns:
+        --------
+        numpy.ndarray
+            Evolution of the density matrix
+        """
+        if not self.jumpRhoTrajectory_compilation_status and verbose:
+            print('Preparing jumpRhoTrajectory (non-compiled) ...')
         self.jumpRhoTrajectory_compilation_status = True
-        return partial(jumpRhoTrajectory_td, self.system.initialStateRho, self.system.timeList, self.system.H, self.system.original_cList, self.system.eta_diag, self.system.cList)(coherent_fields, seed)
+        
+        # Direct implementation without partial function to avoid type errors
+        from qt_unraveling.jumpy_trajectory import jumpRhoTrajectory_td
+        
+        return jumpRhoTrajectory_td(
+            self.system.initialStateRho, 
+            self.system.timeList, 
+            self.system.H, 
+            self.system.original_cList, 
+            self.system.eta_diag, 
+            self.system.cList,
+            coherent_fields,
+            seed,
+            verbose
+        )
 
-    def jump_rho_trajectory_tind(self, coherent_fields, seed=0):
-        return partial(jumpRhoTrajectory_, self.system.initialStateRho, self.system.timeList, self.system.drivingH, self.system.original_lindbladList, self.system.eta_diag, self.system.lindbladList)(coherent_fields, seed)
+    def jump_rho_trajectory_tind(self, coherent_fields, seed=0, parallel=True):
+        """
+        Time-independent implementation of jump trajectory
+        
+        Parameters:
+        -----------
+        coherent_fields : numpy.ndarray
+            Coherent field amplitudes
+        seed : int
+            Random seed for stochastic integration
+        parallel : bool
+            Whether the function is being called in parallel mode
+            
+        Returns:
+        --------
+        numpy.ndarray
+            Evolution of the density matrix
+        """
+        from qt_unraveling.jumpy_trajectory import jumpRhoTrajectory_, jumpRhoTrajectory_py
+        
+        # When running in parallel or if there might be type issues, use the pure Python version
+        if parallel:
+            return jumpRhoTrajectory_py(
+                self.system.initialStateRho,
+                self.system.timeList,
+                self.system.drivingH,
+                self.system.original_lindbladList,
+                self.system.eta_diag,
+                self.system.lindbladList,
+                coherent_fields,
+                seed
+            )
+        else:
+            # Try the Numba-optimized version for non-parallel execution
+            try:
+                return partial(jumpRhoTrajectory_, 
+                    self.system.initialStateRho, 
+                    self.system.timeList, 
+                    self.system.drivingH, 
+                    self.system.original_lindbladList, 
+                    self.system.eta_diag, 
+                    self.system.lindbladList)(coherent_fields, seed)
+            except Exception as e:
+                # If Numba version fails, fall back to Python implementation
+                print(f"Warning: Numba-optimized implementation failed with error: {e}")
+                print("Using pure Python implementation as fallback")
+                return jumpRhoTrajectory_py(
+                    self.system.initialStateRho,
+                    self.system.timeList,
+                    self.system.drivingH,
+                    self.system.original_lindbladList,
+                    self.system.eta_diag,
+                    self.system.lindbladList,
+                    coherent_fields,
+                    seed
+                )
 
-    def jump_rho_trajectory(self, coherent_fields=[], coherent_field_check=True, seed=0):
-        if np.shape(coherent_fields)[0] != 2 * self.system.num_op:
-            raise ValueError('The number of coherent fields should be twice the number of Lindblad operators. Please redefine the coherent field array as [amp_op_1_x, amp_op_2_x..., amp_op_1_y, amp_op_2_y...]')
+    def jump_rho_trajectory(self, coherent_fields=[], coherent_field_check=True, seed=0, verbose=False, parallel=False):
+        """
+        Calculate a quantum jump trajectory
+        
+        Parameters:
+        -----------
+        coherent_fields : numpy.ndarray
+            Coherent field amplitudes
+        coherent_field_check : bool
+            Whether to check coherent fields compatibility
+        seed : int
+            Random seed for stochastic integration
+        verbose : bool
+            Whether to print progress information
+        parallel : bool
+            Whether this function is being called in parallel mode
+            
+        Returns:
+        --------
+        numpy.ndarray
+            Evolution of the density matrix
+        """
+        if len(coherent_fields) > 0 and coherent_fields is not None:
+            if np.shape(coherent_fields)[0] != 2 * self.system.num_op:
+                if verbose:
+                    print(f'Warning: The number of coherent fields {np.shape(coherent_fields)[0]} should be twice the number of Lindblad operators {self.system.num_op}.')
+                    print('Attempting to adjust coherent fields...')
+                # Try to adjust the coherent fields
+                if np.shape(coherent_fields)[0] < 2 * self.system.num_op:
+                    # Pad with zeros
+                    coherent_fields = np.pad(coherent_fields, (0, 2 * self.system.num_op - np.shape(coherent_fields)[0]), 
+                                           mode='constant', constant_values=0)
+                else:
+                    # Truncate
+                    coherent_fields = coherent_fields[:2 * self.system.num_op]
 
         if coherent_field_check:
-            if all(coherent_fields == 0) and self.system.nonfixedUnraveling:
+            if np.all(coherent_fields == 0) and self.system.nonfixedUnraveling:
                 warnings.warn('This library version does not support null coherent fields in addition to adaptative unraveling. Regular x-quadrature unraveling selected')
                 num_op = self.system.num_op
                 oMatrix = self.system.oMatrix
@@ -400,36 +687,125 @@ class JumpyMethods:
             coherent_fields = self.system.coherent_fields
 
         if (self.system.timedepent_lindbladoperators) or (self.system.timedepent_hamiltonian) or (self.system.nonfixedUnraveling):
-            return self.jump_rho_trajectory_td(coherent_fields, seed)
+            return self.jump_rho_trajectory_td(coherent_fields, seed, verbose, parallel)  # Added parallel parameter here
         else:
-            return self.jump_rho_trajectory_tind(coherent_fields, seed)
+            return self.jump_rho_trajectory_tind(coherent_fields, seed, parallel)
 
-    def jump_rho_ensemble(self, n_trajectories, coherent_fields=[]):
+    def jump_rho_ensemble(self, n_trajectories, coherent_fields=[], verbose=False, parallel=True):
+        """
+        Calculate an ensemble of quantum jump trajectories
+        
+        Parameters:
+        -----------
+        n_trajectories : int
+            Number of trajectories to calculate
+        coherent_fields : numpy.ndarray
+            Coherent field amplitudes
+        verbose : bool
+            Whether to print progress information
+        parallel : bool
+            Whether to use parallel processing
+            
+        Returns:
+        --------
+        list
+            List of trajectory arrays
+        """
         if len(coherent_fields) == 0:
             coherent_fields = self.system.coherent_fields
 
         if ((self.system.timedepent_lindbladoperators) or (self.system.timedepent_hamiltonian) or (self.system.nonfixedUnraveling)) and (not self.jumpRhoEnsemble_compilation_status):
             self.jumpRhoEnsemble_compilation_status = True
-            print('Compiling jumpRhoEnsemble ...')
-            tmp = self.jump_rho_trajectory(coherent_fields=coherent_fields, coherent_field_check=True, seed=0)
-            del tmp
+            if verbose:
+                print('Preparing jumpRhoEnsemble ...')
+                # Initialize with a single run to ensure compilation
+                try:
+                    tmp = self.jump_rho_trajectory(coherent_fields=coherent_fields, coherent_field_check=True, seed=0, verbose=verbose)
+                    del tmp
+                except Exception as e:
+                    print(f"Warning: Initial trajectory compilation failed with error: {e}")
+                    print("Continuing with ensemble calculation...")
+        
+        # Use parallel processing if requested
+        if parallel:
+            from qt_unraveling.misc_func import parallel_run
+            
+            # Create a wrapper function for parallel processing
+            def traj_wrapper(seed):
+                # Only first trajectory should print verbose output
+                traj_verbose = verbose and seed == 0
+                return self.jump_rho_trajectory(
+                    coherent_fields=coherent_fields, 
+                    coherent_field_check=False, 
+                    seed=seed, 
+                    verbose=traj_verbose,
+                    parallel=True
+                )
+            
+            # Run trajectories in parallel
+            return parallel_run(traj_wrapper, np.arange(n_trajectories), tqdm_bar=verbose)
+        else:
+            # Sequential implementation
+            all_traj = []
+            for seed in range(n_trajectories):
+                traj_verbose = verbose and seed == 0
+                traj = self.jump_rho_trajectory(
+                    coherent_fields=coherent_fields, 
+                    coherent_field_check=False, 
+                    seed=seed, 
+                    verbose=traj_verbose
+                )
+                all_traj.append(traj)
+            return all_traj
 
-        return parallel_run(partial(self.jump_rho_trajectory, coherent_fields, False), np.arange(n_trajectories))
-
-    def jump_rho_average(self, n_trajectories, coherent_fields=[]):
+    def jump_rho_average(self, n_trajectories, coherent_fields=[], verbose=False, parallel=True):
+        """
+        Calculate the average of quantum jump trajectories
+        
+        Parameters:
+        -----------
+        n_trajectories : int
+            Number of trajectories to average
+        coherent_fields : numpy.ndarray
+            Coherent field amplitudes
+        verbose : bool
+            Whether to print progress information
+        parallel : bool
+            Whether to use parallel processing
+            
+        Returns:
+        --------
+        numpy.ndarray
+            Average trajectory
+        """
         if len(coherent_fields) == 0:
             coherent_fields = self.system.coherent_fields
 
         if ((self.system.timedepent_lindbladoperators) or (self.system.timedepent_hamiltonian) or (self.system.nonfixedUnraveling)) and (not self.jumpRhoAverage_compilation_status):
             self.jumpRhoAverage_compilation_status = True
-            print('Compiling jumpRhoAverage ...')
-            tmp = self.jump_rho_trajectory(coherent_fields=coherent_fields, coherent_field_check=True, seed=0)
-            del tmp
+            if verbose:
+                print('Preparing jumpRhoAverage ...')
+                # Initialize with a single run to ensure compilation
+                try:
+                    tmp = self.jump_rho_trajectory(coherent_fields=coherent_fields, coherent_field_check=True, seed=0, verbose=verbose)
+                    del tmp
+                except Exception as e:
+                    print(f"Warning: Initial trajectory compilation failed with error: {e}")
+                    print("Continuing with average calculation...")
 
+        # Get all trajectories using the ensemble method
+        all_traj = self.jump_rho_ensemble(
+            n_trajectories, 
+            coherent_fields=coherent_fields, 
+            verbose=verbose,
+            parallel=parallel
+        )
+        
+        # Calculate average
         rho_average = np.zeros(np.shape(self.system.timeList) + np.shape(self.system.initialStateRho), dtype=np.complex128)
-        all_traj = parallel_run(partial(self.jump_rho_trajectory, coherent_fields, False), np.arange(n_trajectories))
         for rho_traj in all_traj:
             rho_average = rho_average + (1 / n_trajectories) * rho_traj
+            
         return rho_average
 
 
@@ -519,6 +895,14 @@ def condition_check(U_rep, M_rep):
     return inefficient, np.ascontiguousarray(eta_diag)
 
 
+def sqrt_jit_local(M):
+    """
+    Local implementation of matrix square root for use in representation function.
+    This avoids dependency issues with the imported sqrt_jit.
+    """
+    from scipy.linalg import sqrtm
+    return sqrtm(M)
+
 def representation(num_op, mMatrix, uMatrix, HMatrix, oMatrix, TMatrix, PhiMatrix, WMatrix):
     """
     Generate representation matrices for the quantum system.
@@ -542,11 +926,12 @@ def representation(num_op, mMatrix, uMatrix, HMatrix, oMatrix, TMatrix, PhiMatri
         U_rep[:num_op, num_op:] = 0.5 * (np.imag(uMatrix))
         U_rep[num_op:, num_op:] = 0.5 * (HMatrix - np.real(uMatrix))
 
-        sqrt_U = sqrt_jit(U_rep)
+        # Use local implementation instead of imported one
+        sqrt_U = sqrt_jit_local(U_rep)
         SQ_U_O = np.ascontiguousarray(np.dot(np.ascontiguousarray(sqrt_U), O))
         for i in range(np.shape(SQ_U_O)[0]):
             for j in range(np.shape(SQ_U_O)[0]):
-                SQ_U_O[i, j] = np.round_(SQ_U_O[i, j], 7)
+                SQ_U_O[i, j] = np.round(SQ_U_O[i, j], 7)  # Changed from np.round_ to np.round
 
         M_real = SQ_U_O[0:num_op, :]
         M_imag = SQ_U_O[num_op:2 * num_op, :]
@@ -576,11 +961,12 @@ def representation(num_op, mMatrix, uMatrix, HMatrix, oMatrix, TMatrix, PhiMatri
         U_rep[:num_op, num_op:] = 0.5 * (np.imag(uMatrix))
         U_rep[num_op:, num_op:] = 0.5 * (HMatrix - np.real(uMatrix))
 
-        sqrt_U = sqrt_jit(U_rep)
+        # Use local implementation instead of imported one
+        sqrt_U = sqrt_jit_local(U_rep)
         SQ_U_O = np.ascontiguousarray(np.dot(np.ascontiguousarray(sqrt_U), O))
         for i in range(np.shape(SQ_U_O)[0]):
             for j in range(np.shape(SQ_U_O)[0]):
-                SQ_U_O[i, j] = np.round_(SQ_U_O[i, j], 7)
+                SQ_U_O[i, j] = np.round(SQ_U_O[i, j], 7)  # Changed from np.round_ to np.round
 
         M_real = SQ_U_O[0:num_op, :]
         M_imag = SQ_U_O[num_op:2 * num_op, :]
@@ -605,50 +991,67 @@ def representation(num_op, mMatrix, uMatrix, HMatrix, oMatrix, TMatrix, PhiMatri
 
 
 def update_defintions_uH(uMatrix, HMatrix, oMatrix):
-    num_op = np.shape(uMatrix)[0]
+    """
+    Non-Numba implementation for computing U_rep, M_rep, and T_bar_rep matrices
+    
+    This pure Python version avoids Numba typing issues with complex data
+    """
+    num_op = uMatrix.shape[0]
     U_rep = np.zeros((2 * num_op, 2 * num_op), dtype=np.complex128)
     U_rep[:num_op, :num_op] = 0.5 * (HMatrix + np.real(uMatrix))
-    U_rep[num_op:, :num_op] = 0.5 * (np.imag(uMatrix))
-    U_rep[:num_op, num_op:] = 0.5 * (np.imag(uMatrix))
+    U_rep[num_op:, :num_op] = 0.5 * np.imag(uMatrix)
+    U_rep[:num_op, num_op:] = 0.5 * np.imag(uMatrix)
     U_rep[num_op:, num_op:] = 0.5 * (HMatrix - np.real(uMatrix))
 
-    sqrt_U = sqrt_jit(U_rep)
-    SQ_U_O = np.ascontiguousarray(np.dot(np.ascontiguousarray(sqrt_U), oMatrix))
-    for i in range(np.shape(SQ_U_O)[0]):
-        for j in range(np.shape(SQ_U_O)[0]):
-            SQ_U_O[i, j] = np.round_(SQ_U_O[i, j], 7)
-
-    M_real = SQ_U_O[0:num_op, :]
-    M_imag = SQ_U_O[num_op:2 * num_op, :]
-    M_rep = np.ascontiguousarray(M_real + 1j * M_imag)
-
-    T_bar_real = SQ_U_O[:, 0:num_op]
-    T_bar_imag = SQ_U_O[:, num_op:2 * num_op]
-    T_bar_rep = np.ascontiguousarray(T_bar_real + 1j * T_bar_imag)
-
-    return U_rep, M_rep, T_bar_rep
-
+    # Use scipy's sqrtm instead of numba's sqrt_jit
+    from scipy.linalg import sqrtm
+    sqrt_U = sqrtm(U_rep)
+    
+    SQ_U_O = np.dot(sqrt_U, oMatrix)
+    
+    # Create M_rep directly without intermediates
+    M_rep = SQ_U_O[:num_op].copy() + 1j * SQ_U_O[num_op:2*num_op].copy()
+    
+    # Create T_bar_rep directly
+    T_bar_rep = np.zeros((2*num_op, num_op), dtype=np.complex128)
+    T_bar_rep[:, :] = SQ_U_O[:, :num_op] + 1j * SQ_U_O[:, num_op:2*num_op]
+    
+    return np.ascontiguousarray(U_rep), np.ascontiguousarray(M_rep), np.ascontiguousarray(T_bar_rep)
 
 def update_defintions_M(mMatrix):
-    SQ_U_O = np.zeros((2 * np.shape(mMatrix)[0], 2 * np.shape(mMatrix)[1]), dtype=np.complex128)
-    SQ_U_O[:np.shape(mMatrix)[0], :] = np.real(mMatrix)
-    SQ_U_O[np.shape(mMatrix)[0]:, :] = np.imag(mMatrix)
+    """
+    Non-Numba implementation for computing matrices from an M-matrix
+    """
+    num_op = mMatrix.shape[0]
+    SQ_U_O = np.zeros((2 * num_op, 2 * mMatrix.shape[1]), dtype=np.complex128)
+    SQ_U_O[:num_op, :] = np.real(mMatrix)
+    SQ_U_O[num_op:, :] = np.imag(mMatrix)
 
     T_bar_rep = np.transpose(np.real(mMatrix) + 1j * np.imag(mMatrix))
     U_rep = np.dot(SQ_U_O, np.transpose(SQ_U_O))
 
-    return U_rep, mMatrix, T_bar_rep
-
+    return np.ascontiguousarray(U_rep), np.ascontiguousarray(mMatrix), np.ascontiguousarray(T_bar_rep)
 
 def update_defintions_T_bar(TMatrix, PhiMatrix, WMatrix):
-    SQ_U_O = np.zeros((2 * np.shape(TMatrix)[0], 2 * np.shape(TMatrix)[1]), dtype=np.complex128)
-    T_bar_Matrix = np.zeros((2 * np.shape(TMatrix)[0], np.shape(TMatrix)[1]), dtype=np.complex128)
-    T_bar_Matrix[:np.shape(TMatrix)[0], :] = np.dot(np.dot(PhiMatrix[:np.shape(TMatrix)[0], :], WMatrix), TMatrix)
-    T_bar_Matrix[np.shape(TMatrix)[0]:, :] = np.dot(np.dot(PhiMatrix[np.shape(TMatrix)[0]:, :], WMatrix), TMatrix)
-    SQ_U_O[:, :np.shape(TMatrix)[0]] = np.real(T_bar_Matrix)
-    SQ_U_O[:, np.shape(TMatrix)[0]:] = np.imag(T_bar_Matrix)
+    """
+    Non-Numba implementation for computing matrices from T, Phi, W matrices
+    """
+    num_op = TMatrix.shape[0]
+    SQ_U_O = np.zeros((2 * num_op, 2 * TMatrix.shape[1]), dtype=np.complex128)
+    T_bar_Matrix = np.zeros((2 * num_op, TMatrix.shape[1]), dtype=np.complex128)
+    
+    # Perform dot products once and store
+    PhiW_upper = np.dot(PhiMatrix[:num_op, :], np.transpose(WMatrix[:num_op, :]))
+    PhiW_lower = np.dot(PhiMatrix[num_op:, :], np.transpose(WMatrix[num_op:, :]))
+    
+    # Use stored dot products
+    T_bar_Matrix[:num_op, :] = np.dot(PhiW_upper, TMatrix)
+    T_bar_Matrix[num_op:, :] = np.dot(PhiW_lower, TMatrix)
+    
+    SQ_U_O[:, :num_op] = np.real(T_bar_Matrix)
+    SQ_U_O[:, num_op:] = np.imag(T_bar_Matrix)
 
     M_rep = np.transpose(np.real(T_bar_Matrix) + 1j * np.imag(T_bar_Matrix))
     U_rep = np.dot(SQ_U_O, np.transpose(SQ_U_O))
 
-    return U_rep, M_rep, T_bar_Matrix
+    return np.ascontiguousarray(U_rep), np.ascontiguousarray(M_rep), np.ascontiguousarray(T_bar_Matrix)

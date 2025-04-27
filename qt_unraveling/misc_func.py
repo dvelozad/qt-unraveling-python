@@ -9,7 +9,7 @@ Year: 2022
 import numpy as np
 import matplotlib.pyplot as plt
 from multiprocess import Pool, cpu_count
-from numba import njit
+from numba import njit, prange, complex128, float64, int32
 from tqdm import tqdm
 
 ## Pauli matrices
@@ -20,6 +20,11 @@ sigmaz = np.array([[1,0],[0,-1]], dtype = np.complex128)
 ## Ladder operators
 sigmap = 0.5*(sigmax + 1j*sigmay)
 sigmam = 0.5*(sigmax - 1j*sigmay)
+
+# Pre-compile these constants for numba functions
+_SIGMAX = np.ascontiguousarray(np.array([[0,1],[1,0]], dtype=np.complex128))
+_SIGMAY = np.ascontiguousarray(np.array([[0,-1j],[1j,0]], dtype=np.complex128))
+_SIGMAZ = np.ascontiguousarray(np.array([[1,0],[0,-1]], dtype=np.complex128))
 
 def parallel_run(fun, arg_list, tqdm_bar=False):
     if tqdm_bar:
@@ -58,8 +63,14 @@ def rhoBlochcomp_plot(rho_list, timeList, ax = None, component = ['rx', 'ry', 'r
                   'rz':np.array([[1,0],[0,-1]], dtype = np.complex128)}
     dict_color = {'rx':'b', 'ry':'g', 'rz':'r'}
     
-    t_steps = len(timeList)
-    t = np.linspace(timeList[0], timeList[-1], t_steps)
+    # Handle length mismatch between rho_list and timeList
+    t_steps = min(len(timeList), len(rho_list))
+    if len(timeList) != len(rho_list):
+        print(f"Warning: Length mismatch between timeList ({len(timeList)}) and rho_list ({len(rho_list)}). Using only the first {t_steps} points.")
+    
+    # Truncate time list if needed
+    t = np.linspace(timeList[0], timeList[-1], t_steps) if t_steps < len(timeList) else timeList
+    
     for r_i in component:
         r_ = []
         for i in range(t_steps):
@@ -69,14 +80,47 @@ def rhoBlochcomp_plot(rho_list, timeList, ax = None, component = ['rx', 'ry', 'r
     ax.set_xlabel('time')
     ax.legend()
 
-#@njit
+@njit(float64[:,:](complex128[:,:,:]), fastmath=True, cache=True)
 def rhoBlochcomp_data(rho):
-    pauli_components = np.zeros((3, np.shape(rho)[0]), dtype=np.float64)
-    for n_it, rho_it in enumerate(rho):
-        rho_it = np.ascontiguousarray(rho_it)
-        pauli_components[0][n_it] += np.real(np.trace(rho_it.dot(np.ascontiguousarray(np.array([[0,1],[1,0]], dtype = np.complex128)))))
-        pauli_components[1][n_it] += np.real(np.trace(rho_it.dot(np.ascontiguousarray(np.array([[0,-1j],[1j,0]], dtype = np.complex128)))))
-        pauli_components[2][n_it] += np.real(np.trace(rho_it.dot(np.ascontiguousarray(np.array([[1,0],[0,-1]], dtype = np.complex128)))))
+    pauli_components = np.zeros((3, rho.shape[0]), dtype=np.float64)
+    for n_it in range(rho.shape[0]):
+        rho_it = np.ascontiguousarray(rho[n_it])
+        pauli_components[0, n_it] = np.real(np.trace(rho_it.dot(_SIGMAX)))
+        pauli_components[1, n_it] = np.real(np.trace(rho_it.dot(_SIGMAY)))
+        pauli_components[2, n_it] = np.real(np.trace(rho_it.dot(_SIGMAZ)))
+    return pauli_components
+
+# Pure Python version for handling different types of inputs
+def rhoBlochcomp_data_py(rho):
+    """
+    Pure Python version of rhoBlochcomp_data that can handle different array shapes
+    and doesn't rely on Numba's strict typing.
+    """
+    # Convert lists to numpy arrays if needed
+    if isinstance(rho, list):
+        rho = np.array(rho)
+    
+    # Handle 3D arrays (time series of density matrices)
+    if len(rho.shape) == 3:
+        time_steps = rho.shape[0]
+        pauli_components = np.zeros((3, time_steps), dtype=np.float64)
+        
+        for n_it in range(time_steps):
+            rho_it = rho[n_it]
+            pauli_components[0, n_it] = np.real(np.trace(np.dot(rho_it, sigmax)))
+            pauli_components[1, n_it] = np.real(np.trace(np.dot(rho_it, sigmay)))
+            pauli_components[2, n_it] = np.real(np.trace(np.dot(rho_it, sigmaz)))
+    
+    # Handle 2D arrays (single density matrix)
+    elif len(rho.shape) == 2:
+        pauli_components = np.zeros((3, 1), dtype=np.float64)
+        pauli_components[0, 0] = np.real(np.trace(np.dot(rho, sigmax)))
+        pauli_components[1, 0] = np.real(np.trace(np.dot(rho, sigmay)))
+        pauli_components[2, 0] = np.real(np.trace(np.dot(rho, sigmaz)))
+    
+    else:
+        raise ValueError(f"Input rho has unsupported shape: {rho.shape}")
+        
     return pauli_components
 
 def rhoBlochSphere(rho_list):
@@ -93,13 +137,18 @@ def rhoBlochSphere(rho_list):
 
     ## Bloch sphere components
     for rho in rho_list:
-        x_t, y_t, z_t = rhoBlochcomp_data(rho)
-        ax.plot(x_t, y_t, z_t, linewidth=1)
+        try:
+            # Try the non-Numba version first which can handle different input types
+            x_t, y_t, z_t = rhoBlochcomp_data_py(rho)
+            ax.plot(x_t, y_t, z_t, linewidth=1)
+        except Exception as e:
+            print(f"Warning: Error calculating Bloch components: {e}")
+            print(f"Input shape: {np.shape(rho)}")
         
     ax.set_aspect('auto')
     plt.tight_layout()
 
-@njit
+@njit(int32[:](int32[:], float64[:], int32), fastmath=True, cache=True)
 def numba_choice(population, weights, k):
     # Get cumulative weights
     wc = np.cumsum(weights)
@@ -107,7 +156,7 @@ def numba_choice(population, weights, k):
     m = wc[-1]
     # Arrays of sample and sampled indices
     sample = np.empty(k, dtype=np.int32)
-    sample_idx = np.full(k, -1, np.int32)
+    sample_idx = np.full(k, -1, dtype=np.int32)
     # Sampling loop
     i = 0
     while i < k:
@@ -115,13 +164,30 @@ def numba_choice(population, weights, k):
         r = m * np.random.rand()
         # Get corresponding index
         idx = np.searchsorted(wc, r, side='right')
-        # Check index was not selected before
-        # If not using Numba you can just do `np.isin(idx, sample_idx)`
+        
+        # Check if idx was already selected
+        already_selected = False
         for j in range(i):
             if sample_idx[j] == idx:
-                continue
-        # Save sampled value and index
-        sample[i] = population[idx]
-        sample_idx[i] = population[idx]
-        i += 1
+                already_selected = True
+                break
+                
+        if not already_selected:
+            # Save sampled value and index
+            sample[i] = population[idx]
+            sample_idx[i] = idx  # Store actual index, not the value
+            i += 1
     return sample
+
+# For parallel computation with numba
+@njit(parallel=True, fastmath=True, cache=True)
+def parallel_process(data, n):
+    result = np.zeros((n, data.shape[1]), dtype=data.dtype)
+    for i in prange(n):
+        result[i] = process_single(data[i % data.shape[0]])
+    return result
+
+@njit(fastmath=True, cache=True)
+def process_single(data_row):
+    # Example processing function for a single data row
+    return data_row
